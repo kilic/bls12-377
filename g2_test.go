@@ -1,9 +1,7 @@
 package bls12381
 
 import (
-	"bytes"
 	"crypto/rand"
-	"io/ioutil"
 	"math/big"
 	"testing"
 )
@@ -277,49 +275,6 @@ func TestG2MultiplicativePropertiesWNAF(t *testing.T) {
 		if !g.Equal(t0, t1) {
 			t.Errorf(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
-	}
-}
-
-func TestZKCryptoVectorsG2UncompressedValid(t *testing.T) {
-	data, err := ioutil.ReadFile("tests/g2_uncompressed_valid_test_vectors.dat")
-	if err != nil {
-		panic(err)
-	}
-	g := NewG2()
-	p1 := g.Zero()
-	for i := 0; i < 1000; i++ {
-		vector := data[i*192 : (i+1)*192]
-		p2, err := g.FromUncompressed(vector)
-		if err != nil {
-			t.Fatal("decoing fails", err, i)
-		}
-		uncompressed := g.ToUncompressed(p2)
-		if !bytes.Equal(vector, uncompressed) || !g.Equal(p1, p2) {
-			t.Fatal("bad serialization")
-		}
-		g.Add(p1, p1, &g2One)
-	}
-}
-
-func TestZKCryptoVectorsG2CompressedValid(t *testing.T) {
-	data, err := ioutil.ReadFile("tests/g2_compressed_valid_test_vectors.dat")
-	if err != nil {
-		panic(err)
-	}
-	g := NewG2()
-	p1 := g.Zero()
-	for i := 0; i < 1000; i++ {
-		vector := data[i*96 : (i+1)*96]
-		p2, err := g.FromCompressed(vector)
-		if err != nil {
-			t.Fatal("decoing fails", err, i)
-		}
-		compressed := g.ToCompressed(p2)
-		if !bytes.Equal(vector, compressed) || !g.Equal(p1, p2) {
-			t.Fatal("bad serialization")
-		}
-
-		g.Add(p1, p1, &g2One)
 	}
 }
 
