@@ -1,6 +1,6 @@
 // +build amd64,!generic
 
-package bls12381
+package bls12377
 
 import (
 	"golang.org/x/sys/cpu"

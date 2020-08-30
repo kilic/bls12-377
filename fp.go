@@ -1,4 +1,4 @@
-package bls12381
+package bls12377
 
 import (
 	"errors"
@@ -16,37 +16,6 @@ func fromBytes(in []byte) (*fe, error) {
 	}
 	toMont(fe, fe)
 	return fe, nil
-}
-
-func from64Bytes(in []byte) (*fe, error) {
-	if len(in) != 64 {
-		return nil, errors.New("input string should be equal 64 bytes")
-	}
-	a0 := make([]byte, 48)
-	copy(a0[16:48], in[:32])
-	a1 := make([]byte, 48)
-	copy(a1[16:48], in[32:])
-	e0, err := fromBytes(a0)
-	if err != nil {
-		return nil, err
-	}
-	e1, err := fromBytes(a1)
-	if err != nil {
-		return nil, err
-	}
-	// F = 2 ^ 256 * R
-	F := fe{
-		0x75b3cd7c5ce820f,
-		0x3ec6ba621c3edb0b,
-		0x168a13d82bff6bce,
-		0x87663c4bf8c449d2,
-		0x15f34c83ddc8d830,
-		0xf9628b49caa2e85,
-	}
-
-	mul(e0, e0, &F)
-	add(e1, e1, e0)
-	return e1, nil
 }
 
 func fromBig(in *big.Int) (*fe, error) {
@@ -150,7 +119,7 @@ func inverse(inv, e *fe) {
 		return
 	}
 
-	if k < 381 || k > 381+384 {
+	if k < 377 || k > 377+384 {
 		inv.zero()
 		return
 	}
@@ -166,18 +135,57 @@ func inverse(inv, e *fe) {
 		double(u, u)
 	}
 	inv.set(u)
-	return
-}
-
-func sqrt(c, a *fe) bool {
-	u, v := new(fe).set(a), new(fe)
-	exp(c, a, pPlus1Over4)
-	square(v, c)
-	return u.equal(v)
 }
 
 func isQuadraticNonResidue(elem *fe) bool {
 	result := new(fe)
 	exp(result, elem, pMinus1Over2)
 	return !result.isOne()
+}
+
+func sqrt(c, a *fe) bool {
+	// Adapted from gurvy library
+	// https://github.com/ConsenSys/gurvy/blob/54ab476362d81c5017e853b0c68321544d5acfa8/bls377/fp/element.go#L417
+	w, y, b, t, g := new(fe), new(fe), new(fe), new(fe), new(fe)
+	exp(w, a, sSqrt)
+	mul(y, a, w)
+	mul(b, w, y)
+	g.set(sNonResidue)
+	r := uint64(46)
+	t.set(b)
+	for i := uint64(0); i < r-1; i++ {
+		square(t, t)
+	}
+	if t.isZero() {
+		c.set(zero)
+		return true
+	}
+	if !t.isOne() {
+		return false
+	}
+	for {
+		var m uint64
+		t.set(b)
+
+		for !t.isOne() {
+			square(t, t)
+			m += 1
+		}
+
+		if m == 0 {
+			c.set(y)
+			return true
+		}
+
+		ge := int(r - m - 1)
+		t.set(g)
+		for ge > 0 {
+			square(t, t)
+			ge--
+		}
+		square(g, t)
+		mul(y, y, t)
+		mul(b, b, g)
+		r = m
+	}
 }

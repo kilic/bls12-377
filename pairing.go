@@ -1,4 +1,4 @@
-package bls12381
+package bls12377
 
 type pair struct {
 	g1 *PointG1
@@ -83,25 +83,25 @@ func (e *Engine) affine(p pair) {
 }
 
 func (e *Engine) doublingStep(coeff *[3]fe2, r *PointG2) {
-	// Adaptation of Formula 3 in https://eprint.iacr.org/2010/526.pdf
+
 	fp2 := e.fp2
 	t := e.t2
 	fp2.mul(t[0], &r[0], &r[1])
-	fp2.mulByFq(t[0], t[0], twoInv)
+	fp2.mul0(t[0], t[0], twoInv)
 	fp2.square(t[1], &r[1])
 	fp2.square(t[2], &r[2])
 	fp2.double(t[7], t[2])
 	fp2.add(t[7], t[7], t[2])
-	fp2.mulByB(t[3], t[7])
+	fp2.mul(t[3], t[7], b2)
 	fp2.double(t[4], t[3])
 	fp2.add(t[4], t[4], t[3])
 	fp2.add(t[5], t[1], t[4])
-	fp2.mulByFq(t[5], t[5], twoInv)
+	fp2.mul0(t[5], t[5], twoInv)
 	fp2.add(t[6], &r[1], &r[2])
 	fp2.square(t[6], t[6])
 	fp2.add(t[7], t[2], t[1])
 	fp2.sub(t[6], t[6], t[7])
-	fp2.sub(&coeff[0], t[3], t[1])
+	fp2.sub(&coeff[2], t[3], t[1])
 	fp2.square(t[7], &r[0])
 	fp2.sub(t[4], t[1], t[4])
 	fp2.mul(&r[0], t[4], t[0])
@@ -113,11 +113,11 @@ func (e *Engine) doublingStep(coeff *[3]fe2, r *PointG2) {
 	fp2.mul(&r[2], t[1], t[6])
 	fp2.double(t[0], t[7])
 	fp2.add(&coeff[1], t[0], t[7])
-	fp2.neg(&coeff[2], t[6])
+	fp2.neg(&coeff[0], t[6])
 }
 
 func (e *Engine) additionStep(coeff *[3]fe2, r, q *PointG2) {
-	// Algorithm 12 in https://eprint.iacr.org/2010/526.pdf
+
 	fp2 := e.fp2
 	t := e.t2
 	fp2.mul(t[0], &q[1], &r[2])
@@ -142,19 +142,18 @@ func (e *Engine) additionStep(coeff *[3]fe2, r, q *PointG2) {
 	fp2.mul(&r[2], &r[2], t[4])
 	fp2.mul(t[2], t[1], &q[1])
 	fp2.mul(t[3], t[0], &q[0])
-	fp2.sub(&coeff[0], t[3], t[2])
+	fp2.sub(&coeff[2], t[3], t[2])
 	fp2.neg(&coeff[1], t[0])
-	coeff[2].set(t[1])
+	coeff[0].set(t[1])
 }
 
-func (e *Engine) preCompute(ellCoeffs *[68][3]fe2, twistPoint *PointG2) {
-	// Algorithm 5 in https://eprint.iacr.org/2019/077.pdf
+func (e *Engine) preCompute(ellCoeffs *[69][3]fe2, twistPoint *PointG2) {
 	if e.G2.IsZero(twistPoint) {
 		return
 	}
 	r := new(PointG2).Set(twistPoint)
 	j := 0
-	for i := int(x.BitLen() - 2); i >= 0; i-- {
+	for i := 62; /* int(x.BitLen() - 2) */ i >= 0; i-- {
 		e.doublingStep(&ellCoeffs[j], r)
 		if x.Bit(i) != 0 {
 			j++
@@ -167,10 +166,11 @@ func (e *Engine) preCompute(ellCoeffs *[68][3]fe2, twistPoint *PointG2) {
 
 func (e *Engine) millerLoop(f *fe12) {
 	pairs := e.pairs
-	ellCoeffs := make([][68][3]fe2, len(pairs))
+	ellCoeffs := make([][69][3]fe2, len(pairs))
 	for i := 0; i < len(pairs); i++ {
 		e.preCompute(&ellCoeffs[i], pairs[i].g2)
 	}
+
 	fp12, fp2 := e.fp12, e.fp2
 	t := e.t2
 	f.one()
@@ -180,44 +180,54 @@ func (e *Engine) millerLoop(f *fe12) {
 			fp12.square(f, f)
 		}
 		for i := 0; i <= len(pairs)-1; i++ {
-			fp2.mulByFq(t[0], &ellCoeffs[i][j][2], &pairs[i].g1[1])
-			fp2.mulByFq(t[1], &ellCoeffs[i][j][1], &pairs[i].g1[0])
-			fp12.mulBy014Assign(f, &ellCoeffs[i][j][0], t[1], t[0])
+			fp2.mul0(t[0], &ellCoeffs[i][j][0], &pairs[i].g1[1])
+			fp2.mul0(t[1], &ellCoeffs[i][j][1], &pairs[i].g1[0])
+			fp12.mul034(f, t[0], t[1], &ellCoeffs[i][j][2])
 		}
 		if x.Bit(i) != 0 {
 			j++
 			for i := 0; i <= len(pairs)-1; i++ {
-				fp2.mulByFq(t[0], &ellCoeffs[i][j][2], &pairs[i].g1[1])
-				fp2.mulByFq(t[1], &ellCoeffs[i][j][1], &pairs[i].g1[0])
-				fp12.mulBy014Assign(f, &ellCoeffs[i][j][0], t[1], t[0])
+				fp2.mul0(t[0], &ellCoeffs[i][j][0], &pairs[i].g1[1])
+				fp2.mul0(t[1], &ellCoeffs[i][j][1], &pairs[i].g1[0])
+				fp12.mul034(f, t[0], t[1], &ellCoeffs[i][j][2])
 			}
 		}
 		j++
 	}
-	fp12.conjugate(f, f)
 }
 
-// exp raises element by x = -15132376222941642752
+// exp raises element by x = 9586122913090633729
 func (e *Engine) exp(c, a *fe12) {
-	// Adapted from https://github.com/supranational/blst/blob/master/src/pairing.c
-	fp12 := e.fp12
-	chain := func(n int) {
-		fp12.mulAssign(c, a)
-		for i := 0; i < n; i++ {
-			fp12.cyclotomicSquare(c, c)
-		}
+	fp12, t := e.fp12, e.fp12.t12
+	fp12.cyclotomicSquare(t[0], a)    // t0 = 2
+	fp12.mul(t[2], t[0], a)           // t2 = 3
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) // t0 = 32
+	fp12.mul(t[3], t[0], a)           // t3 = 33
+	fp12.cyclotomicSquare(t[0], t[3]) // t0 = 66
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) //
+	fp12.cyclotomicSquare(t[0], t[0]) // t0 = 4224
+	fp12.mul(t[0], t[0], t[3])        // t0 = 4257
+	fp12.cyclotomicSquare(t[0], t[0])
+	fp12.cyclotomicSquare(t[0], t[0])
+	fp12.cyclotomicSquare(t[0], t[0])
+	fp12.cyclotomicSquare(t[0], t[0])
+	fp12.cyclotomicSquare(t[0], t[0]) // t0 = 136224
+	fp12.mul(t[0], t[0], t[2])        // t0 = 136227
+	for i := 0; i < 46; i++ {
+		fp12.cyclotomicSquare(t[0], t[0]) // t0 = 136227 ** 46
 	}
-	fp12.cyclotomicSquare(c, a) // (a ^ 2)
-	chain(2)                    // (a ^ (2 + 1)) ^ (2 ^ 2) = a ^ 12
-	chain(3)                    // (a ^ (12 + 1)) ^ (2 ^ 3) = a ^ 104
-	chain(9)                    // (a ^ (104 + 1)) ^ (2 ^ 9) = a ^ 53760
-	chain(32)                   // (a ^ (53760 + 1)) ^ (2 ^ 32) = a ^ 230901736800256
-	chain(16)                   // (a ^ (230901736800256 + 1)) ^ (2 ^ 16) = a ^ 15132376222941642752
-	// invert chain result since x is negative
-	fp12.conjugate(c, c)
+	fp12.mul(c, t[0], a) // out = 9586122913090633729
 }
 
 func (e *Engine) finalExp(f *fe12) {
+
 	fp12, t := e.fp12, e.t12
 	// easy part
 
@@ -226,7 +236,7 @@ func (e *Engine) finalExp(f *fe12) {
 	fp12.mul(&t[2], &t[0], &t[1]) // t2 = f0 ^ (p6 - 1)
 	t[1].set(&t[2])               // t1 = f0 ^ (p6 - 1)
 	fp12.frobeniusMap2(&t[2])     // t2 = f0 ^ ((p6 - 1) * p2)
-	fp12.mulAssign(&t[2], &t[1])  // t2 = f0 ^ ((p6 - 1) * (p2 + 1))
+	fp12.mul(&t[2], &t[2], &t[1]) // t2 = f0 ^ ((p6 - 1) * (p2 + 1))
 
 	// f = f0 ^ ((p6 - 1) * (p2 + 1))
 
@@ -244,96 +254,27 @@ func (e *Engine) finalExp(f *fe12) {
 	e.exp(&t[1], &t[5])                 // t1 = f ^ (u^2 - 2 * u)
 	e.exp(&t[0], &t[1])                 // t0 = f ^ (u^3 - 2 * u^2)
 	e.exp(&t[6], &t[0])                 // t6 = f ^ (u^4 - 2 * u^3)
-	fp12.mulAssign(&t[6], &t[4])        // t6 = f ^ (u^4 - 2 * u^3 + 2 * u)
+	fp12.mul(&t[6], &t[6], &t[4])       // t6 = f ^ (u^4 - 2 * u^3 + 2 * u)
 	e.exp(&t[4], &t[6])                 // t4 = f ^ (u^4 - 2 * u^3 + 2 * u^2)
 	fp12.conjugate(&t[5], &t[5])        // t5 = f ^ (2 - u)
-	fp12.mulAssign(&t[4], &t[5])        // t4 = f ^ (u^4 - 2 * u^3 + 2 * u^2 - u + 2)
-	fp12.mulAssign(&t[4], &t[2])        // f_λ_0 = t4 = f ^ (u^4 - 2 * u^3 + 2 * u^2 - u + 3)
+	fp12.mul(&t[4], &t[4], &t[5])       // t4 = f ^ (u^4 - 2 * u^3 + 2 * u^2 - u + 2)
+	fp12.mul(&t[4], &t[4], &t[2])       // f_λ_0 = t4 = f ^ (u^4 - 2 * u^3 + 2 * u^2 - u + 3)
 
-	fp12.conjugate(&t[5], &t[2]) // t5 = f ^ (-1)
-	fp12.mulAssign(&t[5], &t[6]) // t1  = f ^ (u^4 - 2 * u^3 + 2 * u - 1)
-	fp12.frobeniusMap1(&t[5])    // f_λ_1 = t1 = f ^ ((u^4 - 2 * u^3 + 2 * u - 1) ^ p)
+	fp12.conjugate(&t[5], &t[2])  // t5 = f ^ (-1)
+	fp12.mul(&t[5], &t[5], &t[6]) // t1  = f ^ (u^4 - 2 * u^3 + 2 * u - 1)
+	fp12.frobeniusMap1(&t[5])     // f_λ_1 = t1 = f ^ ((u^4 - 2 * u^3 + 2 * u - 1) ^ p)
 
-	fp12.mulAssign(&t[3], &t[0]) // t3 = f ^ (u^3 - 2 * u^2 + u)
-	fp12.frobeniusMap2(&t[3])    // f_λ_2 = t3 = f ^ ((u^3 - 2 * u^2 + u) ^ p^2)
+	fp12.mul(&t[3], &t[3], &t[0]) // t3 = f ^ (u^3 - 2 * u^2 + u)
+	fp12.frobeniusMap2(&t[3])     // f_λ_2 = t3 = f ^ ((u^3 - 2 * u^2 + u) ^ p^2)
 
-	fp12.mulAssign(&t[1], &t[2]) // t1 = f ^ (u^2 - 2 * u + 1)
-	fp12.frobeniusMap3(&t[1])    // f_λ_3 = t1 = f ^ ((u^2 - 2 * u + 1) ^ p^3)
+	fp12.mul(&t[1], &t[1], &t[2]) // t1 = f ^ (u^2 - 2 * u + 1)
+	fp12.frobeniusMap3(&t[1])     // f_λ_3 = t1 = f ^ ((u^2 - 2 * u + 1) ^ p^3)
 
 	// out = f ^ (λ_0 + λ_1 + λ_2 + λ_3)
-	fp12.mulAssign(&t[3], &t[1])
-	fp12.mulAssign(&t[3], &t[5])
+	fp12.mul(&t[3], &t[3], &t[1])
+	fp12.mul(&t[3], &t[3], &t[5])
 	fp12.mul(f, &t[3], &t[4])
 }
-
-// expDrop raises element by x = -15132376222941642752 / 2
-// func (e *Engine) expDrop(c, a *fe12) {
-// 	// Adapted from https://github.com/supranational/blst/blob/master/src/pairing.c
-// 	fp12 := e.fp12
-// 	chain := func(n int) {
-// 		fp12.mulAssign(c, a)
-// 		for i := 0; i < n; i++ {
-// 			fp12.cyclotomicSquare(c, c)
-// 		}
-// 	}
-// 	fp12.cyclotomicSquare(c, a) // (a ^ 2)
-// 	chain(2)                    // (a ^ (2 + 1)) ^ (2 ^ 2) = a ^ 12
-// 	chain(3)                    // (a ^ (12 + 1)) ^ (2 ^ 3) = a ^ 104
-// 	chain(9)                    // (a ^ (104 + 1)) ^ (2 ^ 9) = a ^ 53760
-// 	chain(32)                   // (a ^ (53760 + 1)) ^ (2 ^ 32) = a ^ 230901736800256
-// 	chain(15)                   // (a ^ (230901736800256 + 1)) ^ (2 ^ 16) = a ^ 15132376222941642752 / 2
-// 	// invert chin result since x is negative
-// 	fp12.conjugate(c, c)
-// }
-
-// func (e *Engine) finalExp(f *fe12) {
-// 	fp12, t := e.fp12, e.t12
-// 	// easy part
-
-// 	fp12.inverse(&t[1], f)        // t1 = f0 ^ -1
-// 	fp12.conjugate(&t[0], f)      // t0 = f0 ^ p6
-// 	fp12.mul(&t[2], &t[0], &t[1]) // t2 = f0 ^ (p6 - 1)
-// 	t[1].set(&t[2])               // t1 = f0 ^ (p6 - 1)
-// 	fp12.frobeniusMap2(&t[2])     // t2 = f0 ^ ((p6 - 1) * p2)
-// 	fp12.mulAssign(&t[2], &t[1])  // t2 = f0 ^ ((p6 - 1) * (p2 + 1))
-
-// 	// f = f0 ^ ((p6 - 1) * (p2 + 1))
-
-// 	// hard part
-// 	// https://eprint.iacr.org/2016/130
-// 	// On the Computation of the Optimal Ate Pairing at the 192-bit Security Level
-// 	// Section 4, Algorithm 2
-// 	// f ^ d = λ_0 + λ_1 * p + λ_2 * p^2 + λ_3 * p^3
-// 	f.set(&t[2])
-
-// 	fp12.cyclotomicSquare(&t[0], f) // t0 = f ^ (2)
-// 	e.exp(&t[1], &t[0])             // t1 = f ^ (2 * u)
-// 	e.expDrop(&t[2], &t[1])         // t2 = f ^ (u ^ 2)
-// 	fp12.conjugate(&t[3], f)        // t3 = f ^ (-1)
-// 	fp12.mulAssign(&t[1], &t[3])    // t1 = f ^ (2 * u - 1)
-// 	fp12.conjugate(&t[1], &t[1])    // t1 = f ^ (-2 * u + 1	)
-// 	fp12.mulAssign(&t[1], &t[2])    // f ^ λ_3 = &t[1] = f ^ (u^2 - 2 * u + 1)
-
-// 	e.exp(&t[2], &t[1]) // f ^ λ_2 = &t[2] = f ^ (u^3 - 2 * u^2 + u)
-
-// 	e.exp(&t[3], &t[2])          // t3 = f ^ (u^4 - 2 * u^3 + u^2)
-// 	fp12.conjugate(&t[4], &t[1]) // t4 = f ^ (-λ_3)
-// 	fp12.mulAssign(&t[3], &t[4]) // t2 = f ^ (λ_1)
-
-// 	fp12.frobeniusMap3(&t[1]) // t1 = f ^ (λ_3 * (p ^ 3))
-// 	fp12.frobeniusMap2(&t[2]) // t2 = f ^ (λ_2 * (p ^ 2))
-
-// 	fp12.mulAssign(&t[1], &t[2]) // t1 = f ^ (λ_2 * (p ^ 2) + λ_3 * (p ^ 3))
-
-// 	e.exp(&t[2], &t[3])          // t2 = f ^ (λ_1 * u)
-// 	fp12.mulAssign(&t[2], &t[0]) // t2 = f ^ (λ_1 * u + 2)
-// 	fp12.mulAssign(&t[2], f)     // t2 = f ^ (λ_0 * u)
-
-// 	// out = f ^ (λ_0 + λ_1 + λ_2 + λ_3)
-// 	fp12.mulAssign(&t[1], &t[2])
-// 	fp12.frobeniusMap1(&t[3])
-// 	fp12.mul(f, &t[1], &t[3])
-// }
 
 func (e *Engine) calculate() *fe12 {
 	f := e.fp12.one()

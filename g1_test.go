@@ -1,4 +1,4 @@
-package bls12381
+package bls12377
 
 import (
 	"crypto/rand"
@@ -7,10 +7,8 @@ import (
 )
 
 func (g *G1) one() *PointG1 {
-	one, _ := g.fromBytesUnchecked(fromHex(48,
-		"0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb",
-		"0x08b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1",
-	))
+	one := g.New()
+	one.Set(&g1One)
 	return one
 }
 
@@ -22,28 +20,40 @@ func (g *G1) rand() *PointG1 {
 	return g.MulScalar(&PointG1{}, g.one(), k)
 }
 
+func (g *G1) rand2() *PointG1 {
+	for {
+		x, _ := new(fe).rand(rand.Reader)
+		y := new(fe)
+		square(y, x)
+		mul(y, y, x)
+		add(y, y, b)
+		if sqrt(y, y) {
+			return &PointG1{*x, *y, *one}
+		}
+	}
+}
+
+func TestG1ClearCofactor(t *testing.T) {
+	g1 := NewG1()
+	for i := 0; i < fuz; i++ {
+		a := g1.rand2()
+		if g1.InCorrectSubgroup(a) {
+			t.Fatal("near 0 probablity that this would occur")
+		}
+		g1.ClearCofactor(a)
+		if !g1.InCorrectSubgroup(a) {
+			t.Fatal("cofactor is not cleared")
+		}
+	}
+
+}
+
 func TestG1Serialization(t *testing.T) {
 	var err error
 	g1 := NewG1()
 	zero := g1.Zero()
-	b0 := g1.ToUncompressed(zero)
-	p0, err := g1.FromUncompressed(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 1")
-	}
-	b0 = g1.ToCompressed(zero)
-	p0, err = g1.FromCompressed(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 2")
-	}
-	b0 = g1.ToBytes(zero)
-	p0, err = g1.FromBytes(b0)
+	b0 := g1.ToBytes(zero)
+	p0, err := g1.FromBytes(b0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,25 +62,7 @@ func TestG1Serialization(t *testing.T) {
 	}
 	for i := 0; i < fuz; i++ {
 		a := g1.rand()
-		uncompressed := g1.ToUncompressed(a)
-		b, err := g1.FromUncompressed(uncompressed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 1")
-		}
-		compressed := g1.ToCompressed(b)
-		a, err = g1.FromCompressed(compressed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 2")
-		}
-	}
-	for i := 0; i < fuz; i++ {
-		a := g1.rand()
+		_ = a
 		uncompressed := g1.ToBytes(a)
 		b, err := g1.FromBytes(uncompressed)
 		if err != nil {

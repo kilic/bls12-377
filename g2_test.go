@@ -1,4 +1,4 @@
-package bls12381
+package bls12377
 
 import (
 	"crypto/rand"
@@ -7,15 +7,8 @@ import (
 )
 
 func (g *G2) one() *PointG2 {
-	one, err := g.fromBytesUnchecked(fromHex(48,
-		"0x13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e",
-		"0x024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8",
-		"0x0606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be",
-		"0x0ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801",
-	))
-	if err != nil {
-		panic(err)
-	}
+	one := g.New()
+	one.Set(&g2One)
 	return one
 }
 
@@ -25,16 +18,6 @@ func (g *G2) rand() *PointG2 {
 		panic(err)
 	}
 	return g.MulScalar(&PointG2{}, g.one(), k)
-}
-
-func (g *G2) randCorrect() *PointG2 {
-	k, err := rand.Int(rand.Reader, q)
-	if err != nil {
-		panic(err)
-	}
-	a := g.new()
-	g.MulScalar(a, g.one(), k)
-	return g.ClearCofactor(a)
 }
 
 func (g *G2) randAffine() *PointG2 {
@@ -49,48 +32,13 @@ func TestG2Serialization(t *testing.T) {
 	var err error
 	g2 := NewG2()
 	zero := g2.Zero()
-	b0 := g2.ToUncompressed(zero)
-	p0, err := g2.FromUncompressed(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g2.IsZero(p0) {
-		t.Fatal("bad infinity serialization 1")
-	}
-	b0 = g2.ToCompressed(zero)
-	p0, err = g2.FromCompressed(b0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !g2.IsZero(p0) {
-		t.Fatal("bad infinity serialization 2")
-	}
-	b0 = g2.ToBytes(zero)
-	p0, err = g2.FromBytes(b0)
+	b0 := g2.ToBytes(zero)
+	p0, err := g2.FromBytes(b0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !g2.IsZero(p0) {
 		t.Fatal("bad infinity serialization 3")
-	}
-	for i := 0; i < fuz; i++ {
-		a := g2.rand()
-		uncompressed := g2.ToUncompressed(a)
-		b, err := g2.FromUncompressed(uncompressed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !g2.Equal(a, b) {
-			t.Fatal("bad serialization 1")
-		}
-		compressed := g2.ToCompressed(b)
-		a, err = g2.FromCompressed(compressed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !g2.Equal(a, b) {
-			t.Fatal("bad serialization 2")
-		}
 	}
 	for i := 0; i < fuz; i++ {
 		a := g2.rand()
@@ -168,7 +116,7 @@ func TestG2AdditiveProperties(t *testing.T) {
 		g.Sub(t1, b, a)
 		g.Neg(t1, t1)
 		if !g.Equal(t0, t1) {
-			t.Fatal("a - b == - ( b - a )")
+			t.Fatal("a - b == - (b - a)")
 		}
 		c := g.rand()
 		g.Add(t0, a, b)
@@ -176,7 +124,7 @@ func TestG2AdditiveProperties(t *testing.T) {
 		g.Add(t1, a, c)
 		g.Add(t1, t1, b)
 		if !g.Equal(t0, t1) {
-			t.Fatal("(a + b) + c == (a + c ) + b")
+			t.Fatal("(a + b) + c == (a + c) + b")
 		}
 		g.Sub(t0, a, b)
 		g.Sub(t0, t0, c)
@@ -229,7 +177,7 @@ func TestG2MultiplicativeProperties(t *testing.T) {
 func TestWNAFMulAgainstNaive(t *testing.T) {
 	g2 := NewG2()
 	for i := 0; i < fuz; i++ {
-		a := g2.randCorrect()
+		a := g2.rand()
 		c0, c1 := g2.new(), g2.new()
 		e := randScalar(g2.Q())
 		g2.MulScalar(c0, a, e)
@@ -245,7 +193,7 @@ func TestG2MultiplicativePropertiesWNAF(t *testing.T) {
 	t0, t1 := g.new(), g.new()
 	zero := g.Zero()
 	for i := 0; i < fuz; i++ {
-		a := g.randCorrect()
+		a := g.rand()
 		s1, s2, s3 := randScalar(q), randScalar(q), randScalar(q)
 		sone := big.NewInt(1)
 		g.wnafMul(t0, zero, s1)
