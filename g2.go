@@ -64,11 +64,11 @@ func (g *G2) Q() *big.Int {
 }
 
 func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
-	p0, err := g.f.fromBytes(in[:96])
+	p0, err := g.f.fromBytes(in[:2*FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := g.f.fromBytes(in[96:])
+	p1, err := g.f.fromBytes(in[2*FE_BYTE_SIZE:])
 	if err != nil {
 		return nil, err
 	}
@@ -77,19 +77,17 @@ func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
 }
 
 // FromBytes constructs a new point given uncompressed byte input.
-// FromBytes does not take zcash flags into account.
-// Byte input expected to be at least 192 bytes.
-// First 192 bytes should be concatenation of x and y values
+// Input string expected to be 192 bytes and concatenation of x and y values
 // Point (0, 0) is considered as infinity.
 func (g *G2) FromBytes(in []byte) (*PointG2, error) {
-	if len(in) != 192 {
+	if len(in) != 4*FE_BYTE_SIZE {
 		return nil, errors.New("input string should be equal or larger than 192")
 	}
-	p0, err := g.f.fromBytes(in[:96])
+	p0, err := g.f.fromBytes(in[:2*FE_BYTE_SIZE])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := g.f.fromBytes(in[96:])
+	p1, err := g.f.fromBytes(in[2*FE_BYTE_SIZE:])
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +104,6 @@ func (g *G2) FromBytes(in []byte) (*PointG2, error) {
 }
 
 // ToBytes serializes a point into bytes in uncompressed form,
-// does not take zcash flags into account,
 // returns (0, 0) if point is infinity.
 func (g *G2) ToBytes(p *PointG2) []byte {
 	out := make([]byte, 192)
@@ -114,8 +111,8 @@ func (g *G2) ToBytes(p *PointG2) []byte {
 		return out
 	}
 	g.Affine(p)
-	copy(out[:96], g.f.toBytes(&p[0]))
-	copy(out[96:], g.f.toBytes(&p[1]))
+	copy(out[:2*FE_BYTE_SIZE], g.f.toBytes(&p[0]))
+	copy(out[2*FE_BYTE_SIZE:], g.f.toBytes(&p[1]))
 	return out
 }
 
@@ -337,7 +334,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]PointG2, 255/c+1)
+	windows := make([]PointG2, SCALAR_FIELD_BIT_SIZE/c+1)
 	bucket := make([]PointG2, bucketSize)
 
 	for j := 0; j < len(windows); j++ {

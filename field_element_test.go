@@ -161,7 +161,7 @@ func TestFieldElementHelpers(t *testing.T) {
 
 func TestFieldElementSerialization(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
-		in := make([]byte, 48)
+		in := make([]byte, FE_BYTE_SIZE)
 		fe := new(fe).setBytes(in)
 		if !fe.isZero() {
 			t.Fatal("bad serialization")
@@ -209,18 +209,18 @@ func TestFieldElementByteInputs(t *testing.T) {
 	if !a.equal(zero) {
 		t.Fatal("bad serialization")
 	}
-	in = make([]byte, 48)
+	in = make([]byte, FE_BYTE_SIZE)
 	a = new(fe).setBytes(in)
 	if !a.equal(zero) {
 		t.Fatal("bad serialization")
 	}
-	in = make([]byte, 64)
+	in = make([]byte, FE_BYTE_SIZE+200)
 	a = new(fe).setBytes(in)
 	if !a.equal(zero) {
 		t.Fatal("bad serialization")
 	}
-	in = make([]byte, 49)
-	in[47] = 1
+	in = make([]byte, FE_BYTE_SIZE+1)
+	in[FE_BYTE_SIZE-1] = 1
 	normalOne := &fe{1, 0, 0, 0, 0, 0}
 	a = new(fe).setBytes(in)
 	if !a.equal(normalOne) {
