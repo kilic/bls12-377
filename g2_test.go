@@ -2,6 +2,7 @@ package bls12377
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 )
@@ -294,6 +295,33 @@ func BenchmarkG2Mul(t *testing.B) {
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 		g2.MulScalar(&c, a, e)
+	}
+}
+
+func BenchmarkG2MultiExp(t *testing.B) {
+	g := NewG2()
+	v := func(n int) ([]*PointG2, []*big.Int) {
+		bases := make([]*PointG2, n)
+		scalars := make([]*big.Int, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = rand.Int(rand.Reader, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		return bases, scalars
+	}
+	for _, i := range []int{2, 10, 100, 1000} {
+		t.Run(fmt.Sprint(i), func(t *testing.B) {
+			bases, scalars := v(i)
+			result := g.New()
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				_, _ = g.MultiExp(result, bases, scalars)
+			}
+		})
 	}
 }
 

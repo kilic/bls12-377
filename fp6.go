@@ -138,7 +138,7 @@ func (e *fp6) mul(c, a, b *fe6) {
 
 	fp2.mul(t[0], &a[0], &b[0])     // v0 = a0b0
 	fp2.mul(t[1], &a[1], &b[1])     // v1 = a1b1
-	fp2.mul(t[2], &a[2], &b[2])     // v2 = b2*b2
+	fp2.mul(t[2], &a[2], &b[2])     // v2 = a2b2
 	fp2.add(t[3], &a[1], &a[2])     // a1 + a2
 	fp2.add(t[4], &b[1], &b[2])     // b1 + b2
 	fp2.mul(t[3], t[3], t[4])       // (a1 + a2)(b1 + b2)

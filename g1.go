@@ -6,9 +6,8 @@ import (
 	"math/big"
 )
 
-// PointG1 is type for point in G1.
-// PointG1 is both used for Affine and Jacobian point representation.
-// If z is equal to one the point is accounted as in affine form.
+// PointG1 is type for point in G1 and used for both affine and Jacobian representation.
+// A point is accounted as in affine form if z is equal to one.
 type PointG1 [3]fe
 
 func (p *PointG1) Set(p2 *PointG1) *PointG1 {
@@ -67,10 +66,8 @@ func (g *G1) fromBytesUnchecked(in []byte) (*PointG1, error) {
 }
 
 // FromBytes constructs a new point given uncompressed byte input.
-// FromBytes does not take zcash flags into account.
-// Byte input expected to be at least 96 bytes.
-// First 96 bytes should be concatenation of x and y values.
-// Point (0, 0) is considered as infinity.
+// Input string is expected to be equal to 96 bytes and concatenation of x and y cooridanates.
+// (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 	if len(in) != 96 {
 		return nil, errors.New("input string should be equal or larger than 96")
@@ -163,15 +160,15 @@ func (g *G1) IsOnCurve(p *PointG1) bool {
 		return true
 	}
 	t := g.t
-	square(t[0], &p[1])
-	square(t[1], &p[0])
-	mul(t[1], t[1], &p[0])
-	square(t[2], &p[2])
-	square(t[3], t[2])
-	mul(t[2], t[2], t[3])
-	mul(t[2], b, t[2])
-	add(t[1], t[1], t[2])
-	return t[0].equal(t[1])
+	square(t[0], &p[1])     // y^2
+	square(t[1], &p[0])     // x^2
+	mul(t[1], t[1], &p[0])  // x^3
+	square(t[2], &p[2])     // z^2
+	square(t[3], t[2])      // z^4
+	mul(t[2], t[2], t[3])   // z^6
+	mul(t[2], b, t[2])      // b * z^6
+	add(t[1], t[1], t[2])   // x^2 + b * z^6
+	return t[0].equal(t[1]) // y^3 ?= x^2 + b * z^6
 }
 
 // IsAffine checks a G1 point whether it is in affine form.
@@ -206,14 +203,14 @@ func (g *G1) Add(r, p1, p2 *PointG1) *PointG1 {
 		return r.Set(p1)
 	}
 	t := g.t
-	square(t[7], &p1[2])
-	mul(t[1], &p2[0], t[7])
-	mul(t[2], &p1[2], t[7])
-	mul(t[0], &p2[1], t[2])
-	square(t[8], &p2[2])
-	mul(t[3], &p1[0], t[8])
-	mul(t[4], &p2[2], t[8])
-	mul(t[2], &p1[1], t[4])
+	square(t[7], &p1[2])    // z1z1
+	mul(t[1], &p2[0], t[7]) // u2 = x2 * z1z1
+	mul(t[2], &p1[2], t[7]) // z1z1 * z1
+	mul(t[0], &p2[1], t[2]) // s2 = y2 * z1z1 * z1
+	square(t[8], &p2[2])    // z2z2
+	mul(t[3], &p1[0], t[8]) // u1 = x1 * z2z2
+	mul(t[4], &p2[2], t[8]) // z2z2 * z2
+	mul(t[2], &p1[1], t[4]) // s1 = y1 * z2z2 * z2
 	if t[1].equal(t[3]) {
 		if t[0].equal(t[2]) {
 			return g.Double(r, p1)
@@ -221,27 +218,27 @@ func (g *G1) Add(r, p1, p2 *PointG1) *PointG1 {
 			return r.Zero()
 		}
 	}
-	sub(t[1], t[1], t[3])
-	double(t[4], t[1])
-	square(t[4], t[4])
-	mul(t[5], t[1], t[4])
-	sub(t[0], t[0], t[2])
-	double(t[0], t[0])
-	square(t[6], t[0])
-	sub(t[6], t[6], t[5])
-	mul(t[3], t[3], t[4])
-	double(t[4], t[3])
-	sub(&r[0], t[6], t[4])
-	sub(t[4], t[3], &r[0])
-	mul(t[6], t[2], t[5])
-	double(t[6], t[6])
-	mul(t[0], t[0], t[4])
-	sub(&r[1], t[0], t[6])
-	add(t[0], &p1[2], &p2[2])
-	square(t[0], t[0])
-	sub(t[0], t[0], t[7])
-	sub(t[0], t[0], t[8])
-	mul(&r[2], t[0], t[1])
+	sub(t[1], t[1], t[3])     // h = u2 - u1
+	double(t[4], t[1])        // 2h
+	square(t[4], t[4])        // i = 2h^2
+	mul(t[5], t[1], t[4])     // j = h*i
+	sub(t[0], t[0], t[2])     // s2 - s1
+	double(t[0], t[0])        // r = 2*(s2 - s1)
+	square(t[6], t[0])        // r^2
+	sub(t[6], t[6], t[5])     // r^2 - j
+	mul(t[3], t[3], t[4])     // v = u1 * i
+	double(t[4], t[3])        // 2*v
+	sub(&r[0], t[6], t[4])    // x3 = r^2 - j - 2*v
+	sub(t[4], t[3], &r[0])    // v - x3
+	mul(t[6], t[2], t[5])     // s1 * j
+	double(t[6], t[6])        // 2 * s1 * j
+	mul(t[0], t[0], t[4])     // r * (v - x3)
+	sub(&r[1], t[0], t[6])    // y3 = r * (v - x3) - (2 * s1 * j)
+	add(t[0], &p1[2], &p2[2]) // z1 + z2
+	square(t[0], t[0])        // (z1 + z2)^2
+	sub(t[0], t[0], t[7])     // (z1 + z2)^2 - z1z1
+	sub(t[0], t[0], t[8])     // (z1 + z2)^2 - z1z1 - z2z2
+	mul(&r[2], t[0], t[1])    // z3 = ((z1 + z2)^2 - z1z1 - z2z2) * h
 	return r
 }
 
@@ -252,28 +249,28 @@ func (g *G1) Double(r, p *PointG1) *PointG1 {
 		return r.Set(p)
 	}
 	t := g.t
-	square(t[0], &p[0])
-	square(t[1], &p[1])
-	square(t[2], t[1])
-	add(t[1], &p[0], t[1])
-	square(t[1], t[1])
-	sub(t[1], t[1], t[0])
-	sub(t[1], t[1], t[2])
-	double(t[1], t[1])
-	double(t[3], t[0])
-	add(t[0], t[3], t[0])
-	square(t[4], t[0])
-	double(t[3], t[1])
-	sub(&r[0], t[4], t[3])
-	sub(t[1], t[1], &r[0])
-	double(t[2], t[2])
-	double(t[2], t[2])
-	double(t[2], t[2])
-	mul(t[0], t[0], t[1])
-	sub(t[1], t[0], t[2])
-	mul(t[0], &p[1], &p[2])
-	r[1].set(t[1])
-	double(&r[2], t[0])
+	square(t[0], &p[0])     // a = x^2
+	square(t[1], &p[1])     // b = y^2
+	square(t[2], t[1])      // c = b^2
+	add(t[1], &p[0], t[1])  // b + x1
+	square(t[1], t[1])      // (b + x1)^2
+	sub(t[1], t[1], t[0])   // (b + x1)^2 - a
+	sub(t[1], t[1], t[2])   // (b + x1)^2 - a - c
+	double(t[1], t[1])      // d = 2((b+x1)^2 - a - c)
+	double(t[3], t[0])      // 2a
+	add(t[0], t[3], t[0])   // e = 3a
+	square(t[4], t[0])      // f = e^2
+	double(t[3], t[1])      // 2d
+	sub(&r[0], t[4], t[3])  // x3 = f - 2d
+	sub(t[1], t[1], &r[0])  // d-x3
+	double(t[2], t[2])      //
+	double(t[2], t[2])      //
+	double(t[2], t[2])      // 8c
+	mul(t[0], t[0], t[1])   // e * (d - x3)
+	sub(t[1], t[0], t[2])   // x3 = e * (d - x3) - 8c
+	mul(t[0], &p[1], &p[2]) // y1 * z1
+	r[1].set(t[1])          //
+	double(&r[2], t[0])     // z3 = 2(y1 * z1)
 	return r
 }
 
@@ -316,54 +313,47 @@ func (g *G1) ClearCofactor(p *PointG1) {
 // (P_0, e_0), (P_1, e_1), ... (P_n, e_n) calculates r = e_0 * P_0 + e_1 * P_1 + ... + e_n * P_n
 // Length of points and scalars are expected to be equal, otherwise an error is returned.
 // Result is assigned to point at first argument.
-func (g *G1) MultiExp(r *PointG1, points []*PointG1, powers []*big.Int) (*PointG1, error) {
-	if len(points) != len(powers) {
+func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*PointG1, error) {
+	if len(points) != len(scalars) {
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
-	var c uint32 = 3
-	if len(powers) >= 32 {
-		c = uint32(math.Ceil(math.Log10(float64(len(powers)))))
+
+	c := 3
+	if len(scalars) >= 32 {
+		c = int(math.Ceil(math.Log(float64(len(scalars)))))
 	}
-	bucketSize, numBits := (1<<c)-1, uint32(g.Q().BitLen())
-	windows := make([]*PointG1, numBits/c+1)
-	bucket := make([]*PointG1, bucketSize)
-	acc, sum := g.New(), g.New()
-	for i := 0; i < bucketSize; i++ {
-		bucket[i] = g.New()
-	}
-	mask := (uint64(1) << c) - 1
-	j := 0
-	var cur uint32
-	for cur <= numBits {
-		acc.Zero()
-		bucket = make([]*PointG1, (1<<c)-1)
-		for i := 0; i < len(bucket); i++ {
-			bucket[i] = g.New()
+
+	bucketSize := (1 << c) - 1
+	windows := make([]PointG1, 255/c+1)
+	bucket := make([]PointG1, bucketSize)
+
+	for j := 0; j < len(windows); j++ {
+
+		for i := 0; i < bucketSize; i++ {
+			bucket[i].Zero()
 		}
-		for i := 0; i < len(powers); i++ {
-			s0 := powers[i].Uint64()
-			index := uint(s0 & mask)
+
+		for i := 0; i < len(scalars); i++ {
+			index := bucketSize & int(new(big.Int).Rsh(scalars[i], uint(c*j)).Int64())
 			if index != 0 {
-				g.Add(bucket[index-1], bucket[index-1], points[i])
+				g.Add(&bucket[index-1], &bucket[index-1], points[i])
 			}
-			powers[i] = new(big.Int).Rsh(powers[i], uint(c))
 		}
-		sum.Zero()
-		for i := len(bucket) - 1; i >= 0; i-- {
-			g.Add(sum, sum, bucket[i])
+
+		acc, sum := g.New(), g.New()
+		for i := bucketSize - 1; i >= 0; i-- {
+			g.Add(sum, sum, &bucket[i])
 			g.Add(acc, acc, sum)
 		}
-		windows[j] = g.New()
 		windows[j].Set(acc)
-		j++
-		cur += c
 	}
-	acc.Zero()
+
+	acc := g.New()
 	for i := len(windows) - 1; i >= 0; i-- {
-		for j := uint32(0); j < c; j++ {
+		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.Add(acc, acc, windows[i])
+		g.Add(acc, acc, &windows[i])
 	}
 	return r.Set(acc), nil
 }
