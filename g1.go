@@ -24,6 +24,11 @@ func (p *PointG1) Zero() *PointG1 {
 	return p
 }
 
+// IsAffine checks a G1 point whether it is in affine form.
+func (p *PointG1) IsAffine() bool {
+	return p[2].isOne()
+}
+
 type tempG1 struct {
 	t [9]*fe
 }
@@ -70,7 +75,7 @@ func (g *G1) fromBytesUnchecked(in []byte) (*PointG1, error) {
 // (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 	if len(in) != 2*FE_BYTE_SIZE {
-		return nil, errors.New("input string should be equal or larger than 96")
+		return nil, errors.New("input string should be 96 bytes")
 	}
 	p0, err := fromBytes(in[:FE_BYTE_SIZE])
 	if err != nil {
@@ -159,15 +164,18 @@ func (g *G1) IsOnCurve(p *PointG1) bool {
 		return true
 	}
 	t := g.t
-	square(t[0], &p[1])     // y^2
-	square(t[1], &p[0])     // x^2
-	mul(t[1], t[1], &p[0])  // x^3
+	square(t[0], &p[1])    // y^2
+	square(t[1], &p[0])    // x^2
+	mul(t[1], t[1], &p[0]) // x^3
+	if p.IsAffine() {
+		addAssign(t[1], b)      // x^2 + b
+		return t[0].equal(t[1]) // y^2 ?= x^3 + b
+	}
 	square(t[2], &p[2])     // z^2
 	square(t[3], t[2])      // z^4
-	mul(t[2], t[2], t[3])   // z^6
-	mul(t[2], b, t[2])      // b * z^6
-	add(t[1], t[1], t[2])   // x^2 + b * z^6
-	return t[0].equal(t[1]) // y^3 ?= x^2 + b * z^6
+	mul(t[2], t[2], t[3])   // z^6 = b * z^6
+	add(t[1], t[1], t[2])   // x^3 + b * z^6
+	return t[0].equal(t[1]) // y^2 ?= x^3 + b * z^6
 }
 
 // IsAffine checks a G1 point whether it is in affine form.

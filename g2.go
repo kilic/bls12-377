@@ -6,9 +6,8 @@ import (
 	"math/big"
 )
 
-// PointG2 is type for point in G2.
-// PointG2 is both used for Affine and Jacobian point representation.
-// If z is equal to one the point is accounted as in affine form.
+// PointG2 is type for point in G2 and used for both affine and Jacobian representation.
+// A point is accounted as in affine form if z is equal to one.
 type PointG2 [3]fe2
 
 // Set copies valeus of one point to another.
@@ -24,7 +23,11 @@ func (p *PointG2) Zero() *PointG2 {
 	p[1].one()
 	p[2].zero()
 	return p
+}
 
+// IsAffine checks a G2 point whether it is in affine form.
+func (p *PointG2) IsAffine() bool {
+	return p[2].isOne()
 }
 
 type tempG2 struct {
@@ -81,7 +84,7 @@ func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
 // Point (0, 0) is considered as infinity.
 func (g *G2) FromBytes(in []byte) (*PointG2, error) {
 	if len(in) != 4*FE_BYTE_SIZE {
-		return nil, errors.New("input string should be equal or larger than 192")
+		return nil, errors.New("input string should be 192 bytes")
 	}
 	p0, err := g.f.fromBytes(in[:2*FE_BYTE_SIZE])
 	if err != nil {
@@ -170,15 +173,19 @@ func (g *G2) IsOnCurve(p *PointG2) bool {
 		return true
 	}
 	t := g.t
-	g.f.square(t[0], &p[1])
-	g.f.square(t[1], &p[0])
-	g.f.mul(t[1], t[1], &p[0])
-	g.f.square(t[2], &p[2])
-	g.f.square(t[3], t[2])
-	g.f.mul(t[2], t[2], t[3])
-	g.f.mul(t[2], b2, t[2])
-	g.f.add(t[1], t[1], t[2])
-	return t[0].equal(t[1])
+	g.f.square(t[0], &p[1])    // y^2
+	g.f.square(t[1], &p[0])    // x^2
+	g.f.mul(t[1], t[1], &p[0]) // x^3
+	if p.IsAffine() {
+		g.f.add(t[1], t[1], b2) // x^2 + b
+		return t[0].equal(t[1]) // y^2 ?= x^3 + b
+	}
+	g.f.square(t[2], &p[2])   // z^2
+	g.f.square(t[3], t[2])    // z^4
+	g.f.mul(t[2], t[2], t[3]) // z^6
+	g.f.mul(t[2], b2, t[2])   // b*z^6
+	g.f.add(t[1], t[1], t[2]) // x^3 + b * z^6
+	return t[0].equal(t[1])   // y^2 ?= x^3 + b * z^6
 }
 
 // IsAffine checks a G2 point whether it is in affine form.
