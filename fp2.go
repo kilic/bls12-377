@@ -68,29 +68,29 @@ func (e *fp2) fromMont(c, a *fe2) {
 }
 
 func (e *fp2) add(c, a, b *fe2) {
-	// c0 = a0 * b0
-	// c1 = a1 * b1
+	// c0 = a0b0
+	// c1 = a1b1
 	add(&c[0], &a[0], &b[0])
 	add(&c[1], &a[1], &b[1])
 }
 
 func (e *fp2) ladd(c, a, b *fe2) {
-	// c0 = a0 * b0
-	// c1 = a1 * b1
+	// c0 = a0b0
+	// c1 = a1b1
 	ladd(&c[0], &a[0], &b[0])
 	ladd(&c[1], &a[1], &b[1])
 }
 
 func (e *fp2) double(c, a *fe2) {
-	// c0 = a0 * 2
-	// c1 = a1 * 2
+	// c0 = 2a0
+	// c1 = 2a1
 	double(&c[0], &a[0])
 	double(&c[1], &a[1])
 }
 
 func (e *fp2) ldouble(c, a *fe2) {
-	// c0 = a0 * 2
-	// c1 = a1 * 2
+	// c0 = a02
+	// c1 = a12
 	ldouble(&c[0], &a[0])
 	ldouble(&c[1], &a[1])
 }
@@ -119,11 +119,8 @@ func (e *fp2) conjugate(c, a *fe2) {
 func (e *fp2) mul(c, a, b *fe2) {
 	t := e.t
 	// Guide to Pairing Based Cryptography
-	// 5. Arithmetic of Finite Fields
 	// Algorithm 5.16
-	//
-	// c0 = a0b0 - 5a1b1
-	// c1 = (a0 + a1)(b0 + b1) - (a0b0 + a1b1)
+
 	mul(t[1], &a[0], &b[0]) // v0 = a0b0
 	mul(t[2], &a[1], &b[1]) // v1 = a1b1
 	add(t[0], t[1], t[2])   // v0 + v1
@@ -146,11 +143,8 @@ func (e *fp2) mul0(c, a *fe2, b *fe) {
 func (e *fp2) square(c, a *fe2) {
 	t := e.t
 	// Guide to Pairing Based Cryptography
-	// 5. Arithmetic of Finite Fields
 	// Algorithm 5.16
-	//
-	// c0 = (a0 - a1)(a0 + 5a1) - 4a1a0
-	// c1 = 2a0a1
+
 	sub(t[0], &a[0], &a[1]) // (a0 - a1)
 	double(t[1], &a[1])     // 2a1
 	mul(t[2], t[1], &a[0])  // 2a0a1
@@ -165,8 +159,8 @@ func (e *fp2) square(c, a *fe2) {
 
 func (e *fp2) mulByNonResidue(c, a *fe2) {
 	t := e.t
-	// a = a0 + a1 * v
-	// c = -5a1 + a0 * v
+	// c0 = -5a1
+	// c1 = a0
 	t[0].set(&a[0])
 	neg(t[1], &a[1])
 	doubleAssign(t[1])
@@ -176,19 +170,21 @@ func (e *fp2) mulByNonResidue(c, a *fe2) {
 }
 
 func (e *fp2) inverse(c, a *fe2) {
+	// Guide to Pairing Based Cryptography
+	// Algorithm 5.16
+
 	t := e.t
-	// c0 = a0 * (a0^2 - β * a1^2)^-1
-	// c1 = a1 * (a0^2 - β * a1^2)^-1
-	square(t[0], &a[0])
-	square(t[1], &a[1])
-	double(t[2], t[1])
-	doubleAssign(t[2])
-	addAssign(t[1], t[2])
-	addAssign(t[0], t[1])
-	inverse(t[0], t[0])
-	mul(&c[0], &a[0], t[0])
-	mul(t[0], t[0], &a[1])
-	neg(&c[1], t[0])
+
+	square(t[0], &a[0])     // a0^2
+	square(t[1], &a[1])     // a1^2
+	double(t[2], t[1])      // 2a1^2
+	doubleAssign(t[2])      // 4a1^2
+	addAssign(t[1], t[2])   // 5a1^2
+	addAssign(t[0], t[1])   // a0^2 + 5a1^2
+	inverse(t[0], t[0])     // (a0^2 + 5a1^2)^-1
+	mul(&c[0], &a[0], t[0]) // a0((a0^2 + 5a1^2)^-1)
+	mul(t[0], t[0], &a[1])  // a1((a0^2 + 5a1^2)^-1)
+	neg(&c[1], t[0])        // -a1((a0^2 + 5a1^2)^-1)
 }
 
 func (e *fp2) exp(c, a *fe2, s *big.Int) {
