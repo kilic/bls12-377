@@ -95,7 +95,7 @@ func (e *Engine) doublingStep(coeff *fe6, r *PointG2) {
 	fp2.mul(t[3], t[7], b2)
 	fp2.double(t[4], t[3])
 	fp2.add(t[4], t[4], t[3])
-	fp2.add(t[5], t[1], t[4])
+	fp2.ladd(t[5], t[1], t[4])
 	fp2.mul0(t[5], t[5], twoInv)
 	fp2.add(t[6], &r[1], &r[2])
 	fp2.square(t[6], t[6])
