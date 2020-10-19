@@ -67,11 +67,11 @@ func (g *G2) Q() *big.Int {
 }
 
 func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
-	p0, err := g.f.fromBytes(in[:2*FE_BYTE_SIZE])
+	p0, err := g.f.fromBytes(in[:2*fpByteSize])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := g.f.fromBytes(in[2*FE_BYTE_SIZE:])
+	p1, err := g.f.fromBytes(in[2*fpByteSize:])
 	if err != nil {
 		return nil, err
 	}
@@ -83,14 +83,14 @@ func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
 // Input string expected to be 192 bytes and concatenation of x and y values
 // Point (0, 0) is considered as infinity.
 func (g *G2) FromBytes(in []byte) (*PointG2, error) {
-	if len(in) != 4*FE_BYTE_SIZE {
+	if len(in) != 4*fpByteSize {
 		return nil, errors.New("input string should be 192 bytes")
 	}
-	p0, err := g.f.fromBytes(in[:2*FE_BYTE_SIZE])
+	p0, err := g.f.fromBytes(in[:2*fpByteSize])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := g.f.fromBytes(in[2*FE_BYTE_SIZE:])
+	p1, err := g.f.fromBytes(in[2*fpByteSize:])
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +114,8 @@ func (g *G2) ToBytes(p *PointG2) []byte {
 		return out
 	}
 	g.Affine(p)
-	copy(out[:2*FE_BYTE_SIZE], g.f.toBytes(&p[0]))
-	copy(out[2*FE_BYTE_SIZE:], g.f.toBytes(&p[1]))
+	copy(out[:2*fpByteSize], g.f.toBytes(&p[0]))
+	copy(out[2*fpByteSize:], g.f.toBytes(&p[1]))
 	return out
 }
 
@@ -341,7 +341,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]PointG2, SCALAR_FIELD_BIT_SIZE/c+1)
+	windows := make([]PointG2, frBitSize/c+1)
 	bucket := make([]PointG2, bucketSize)
 
 	for j := 0; j < len(windows); j++ {

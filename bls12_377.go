@@ -1,10 +1,10 @@
 package bls12377
 
-const N_LIMBS = 6
-const FE_BYTE_SIZE = 48
-const FE_BIT_SIZE = 377
-const SIX_WORD_BIT_SIZE = 384
-const SCALAR_FIELD_BIT_SIZE = 253
+const fpNumberOfLimbs = 6
+const fpByteSize = 48
+const fpBitSize = 377
+const sixWordBitSize = 384
+const frBitSize = 253
 
 /*
 	Field Constants

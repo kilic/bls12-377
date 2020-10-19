@@ -58,11 +58,11 @@ func (g *G1) Q() *big.Int {
 }
 
 func (g *G1) fromBytesUnchecked(in []byte) (*PointG1, error) {
-	p0, err := fromBytes(in[:FE_BYTE_SIZE])
+	p0, err := fromBytes(in[:fpByteSize])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := fromBytes(in[FE_BYTE_SIZE:])
+	p1, err := fromBytes(in[fpByteSize:])
 	if err != nil {
 		return nil, err
 	}
@@ -74,14 +74,14 @@ func (g *G1) fromBytesUnchecked(in []byte) (*PointG1, error) {
 // Input string is expected to be equal to 96 bytes and concatenation of x and y cooridanates.
 // (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
-	if len(in) != 2*FE_BYTE_SIZE {
+	if len(in) != 2*fpByteSize {
 		return nil, errors.New("input string should be 96 bytes")
 	}
-	p0, err := fromBytes(in[:FE_BYTE_SIZE])
+	p0, err := fromBytes(in[:fpByteSize])
 	if err != nil {
 		return nil, err
 	}
-	p1, err := fromBytes(in[FE_BYTE_SIZE:])
+	p1, err := fromBytes(in[fpByteSize:])
 	if err != nil {
 		return nil, err
 	}
@@ -100,13 +100,13 @@ func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 // ToBytes serializes a point into bytes in uncompressed form.
 // ToBytes returns (0, 0) if point is infinity.
 func (g *G1) ToBytes(p *PointG1) []byte {
-	out := make([]byte, 2*FE_BYTE_SIZE)
+	out := make([]byte, 2*fpByteSize)
 	if g.IsZero(p) {
 		return out
 	}
 	g.Affine(p)
-	copy(out[:FE_BYTE_SIZE], toBytes(&p[0]))
-	copy(out[FE_BYTE_SIZE:], toBytes(&p[1]))
+	copy(out[:fpByteSize], toBytes(&p[0]))
+	copy(out[fpByteSize:], toBytes(&p[1]))
 	return out
 }
 
@@ -331,7 +331,7 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*Point
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]PointG1, SCALAR_FIELD_BIT_SIZE/c+1)
+	windows := make([]PointG1, frBitSize/c+1)
 	bucket := make([]PointG1, bucketSize)
 
 	for j := 0; j < len(windows); j++ {
