@@ -52,8 +52,9 @@ func newEngineTemp() pairingEngineTemp {
 // AddPair adds a g1, g2 point pair to pairing engine
 func (e *Engine) AddPair(g1 *PointG1, g2 *PointG2) *Engine {
 	p := newPair(g1, g2)
-	if !e.isZero(p) {
-		e.affine(p)
+	if !(e.G1.IsZero(p.g1) || e.G2.IsZero(p.g2)) {
+		e.G1.Affine(p.g1)
+		e.G2.Affine(p.g2)
 		e.pairs = append(e.pairs, p)
 	}
 	return e
@@ -71,15 +72,6 @@ func (e *Engine) AddPairInv(g1 *PointG1, g2 *PointG2) *Engine {
 func (e *Engine) Reset() *Engine {
 	e.pairs = []pair{}
 	return e
-}
-
-func (e *Engine) isZero(p pair) bool {
-	return e.G1.IsZero(p.g1) || e.G2.IsZero(p.g2)
-}
-
-func (e *Engine) affine(p pair) {
-	e.G1.Affine(p.g1)
-	e.G2.Affine(p.g2)
 }
 
 func (e *Engine) doublingStep(coeff *fe6, r *PointG2) {
