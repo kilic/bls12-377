@@ -163,10 +163,9 @@ func (e *fp6) mul0(c, a *fe6, b0 *fe2) {
 }
 
 func (e *fp6) mul(c, a, b *fe6) {
+	fp2, t := e.fp2, e.t
 	// Guide to Pairing Based Cryptography
 	// Algorithm 5.21
-
-	fp2, t := e.fp2, e.t
 
 	fp2.mul(t[0], &a[0], &b[0])     // v0 = a0b0
 	fp2.mul(t[1], &a[1], &b[1])     // v1 = a1b1
@@ -197,13 +196,12 @@ func (e *fp6) mul(c, a, b *fe6) {
 }
 
 func (e *fp6) mul01(c, a *fe6, b0, b1 *fe2) {
+	fp2, t := e.fp2, e.t
 	// v0 = a0b0
 	// v1 = a1b1
 	// c0 = (b1(a1 + a2) - v1)β + v0
 	// c1 = (a0 + a1)(b0 + b1) - v0 - v1
 	// c2 = b0(a0 + a2) - v0 + v1
-
-	fp2, t := e.fp2, e.t
 
 	fp2.mul(t[0], &a[0], b0)        // v0 = b0a0
 	fp2.mul(t[1], &a[1], b1)        // v1 = a1b1
@@ -224,11 +222,10 @@ func (e *fp6) mul01(c, a *fe6, b0, b1 *fe2) {
 }
 
 func (e *fp6) square(c, a *fe6) {
+	fp2, t := e.fp2, e.t
 	// Multiplication and Squaring on Pairing-Friendly Fields
 	// Algorithm CH-SQR2
 	// https://eprint.iacr.org/2006/471
-
-	fp2, t := e.fp2, e.t
 
 	fp2.square(t[0], &a[0])     // s0 = a0^2
 	fp2.mul(t[1], &a[0], &a[1]) // a0a1
@@ -273,10 +270,9 @@ func (e *fp6) exp(c, a *fe6, s *big.Int) {
 }
 
 func (e *fp6) inverse(c, a *fe6) {
+	fp2, t := e.fp2, e.t
 	// Guide to Pairing Based Cryptography
 	// Algorithm 5.23
-
-	fp2, t := e.fp2, e.t
 
 	fp2.square(t[0], &a[0])
 	fp2.mul(t[1], &a[1], &a[2])

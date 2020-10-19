@@ -7,10 +7,14 @@ const SIX_WORD_BIT_SIZE = 384
 const SCALAR_FIELD_BIT_SIZE = 253
 
 /*
- Base field
- p = 0x01ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001
- r = 2^384
+	Field Constants
 */
+
+// Base field modulus
+// p = 0x01ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001
+
+// Size of six words
+// r = 2 ^ 384
 
 // modulus = p
 var modulus = fe{0x8508c00000000001, 0x170b5d4430000000, 0x1ef3622fba094800, 0x1a22d9f300f5138f, 0xc63b05c06ca1493b, 0x01ae3a4617c510ea}
@@ -24,10 +28,10 @@ var r1 = &fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e9
 // one = r mod p
 var one = r1
 
-// zer0 = 0
+// zero = 0
 var zero = &fe{}
 
-// r^2 mod p
+// r2 = r^2 mod p
 var r2 = &fe{
 	0xb786686c9400cd22, 0x0329fcaab00431b1, 0x22a5f11162d6b46d, 0xbfdf7d03827dc3ac, 0x837e92f041790bf9, 0x006dfccb1e914b88,
 }
@@ -60,7 +64,7 @@ var nonResidue2 = &fe2{
 var sNonResidue = &fe{0x1c104955744e6e0f, 0xf1bd15c3898dd1af, 0x76da78169a7f3950, 0xee086c1fe367c337, 0xf95564f4cbc1b61f, 0x00f3c1414ef58c54}
 
 /*
-	Curve
+	Curve Constants
 */
 
 // Group order

@@ -68,15 +68,15 @@ func (e *fp2) fromMont(c, a *fe2) {
 }
 
 func (e *fp2) add(c, a, b *fe2) {
-	// c0 = a0b0
-	// c1 = a1b1
+	// c0 = a0 + b0
+	// c1 = a1 + b1
 	add(&c[0], &a[0], &b[0])
 	add(&c[1], &a[1], &b[1])
 }
 
 func (e *fp2) ladd(c, a, b *fe2) {
-	// c0 = a0b0
-	// c1 = a1b1
+	// c0 = a0 + b0
+	// c1 = a1 + b1
 	ladd(&c[0], &a[0], &b[0])
 	ladd(&c[1], &a[1], &b[1])
 }
@@ -89,8 +89,8 @@ func (e *fp2) double(c, a *fe2) {
 }
 
 func (e *fp2) ldouble(c, a *fe2) {
-	// c0 = a02
-	// c1 = a12
+	// c0 = 2a0
+	// c1 = 2a1
 	ldouble(&c[0], &a[0])
 	ldouble(&c[1], &a[1])
 }

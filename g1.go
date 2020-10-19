@@ -173,7 +173,7 @@ func (g *G1) IsOnCurve(p *PointG1) bool {
 	}
 	square(t[2], &p[2])     // z^2
 	square(t[3], t[2])      // z^4
-	mul(t[2], t[2], t[3])   // z^6 = b * z^6
+	mul(t[2], t[2], t[3])   // b * z^6
 	add(t[1], t[1], t[2])   // x^3 + b * z^6
 	return t[0].equal(t[1]) // y^2 ?= x^3 + b * z^6
 }
@@ -190,12 +190,12 @@ func (g *G1) Affine(p *PointG1) *PointG1 {
 	}
 	if !g.IsAffine(p) {
 		t := g.t
-		inverse(t[0], &p[2])
-		square(t[1], t[0])
-		mul(&p[0], &p[0], t[1])
-		mul(t[0], t[0], t[1])
-		mul(&p[1], &p[1], t[0])
-		p[2].one()
+		inverse(t[0], &p[2])    // z^-1
+		square(t[1], t[0])      // z^-2
+		mul(&p[0], &p[0], t[1]) // x = x * z^-2
+		mul(t[0], t[0], t[1])   // z^-3
+		mul(&p[1], &p[1], t[0]) // y = y * z^-3
+		p[2].one()              // z = 1
 	}
 	return p
 }

@@ -121,11 +121,10 @@ func (e *fp12) conjugate(c, a *fe12) {
 }
 
 func (e *fp12) square(c, a *fe12) {
+	fp6, t := e.fp6, e.t6
 	// Multiplication and Squaring on Pairing-Friendly Fields
 	// Complex squaring algorithm
 	// https://eprint.iacr.org/2006/471
-
-	fp6, t := e.fp6, e.t6
 
 	fp6.ladd(t[0], &a[0], &a[1])     // a0 + a1
 	fp6.mul(t[2], &a[0], &a[1])      // v0 = a0a1
@@ -140,6 +139,9 @@ func (e *fp12) square(c, a *fe12) {
 
 func (e *fp12) cyclotomicSquare(c, a *fe12) {
 	t, fp2 := e.t2, e.fp2()
+	// Guide to Pairing Based Cryptography
+	// 5.5.4 Airthmetic in Cyclotomic Groups
+
 	e.fp4Square(t[3], t[4], &a[0][0], &a[1][1])
 	fp2.sub(t[2], t[3], &a[0][0])
 	fp2.double(t[2], t[2])
@@ -166,7 +168,6 @@ func (e *fp12) cyclotomicSquare(c, a *fe12) {
 
 func (e *fp12) mul(c, a, b *fe12) {
 	// Guide to Pairing Based Cryptography
-	// 5. Arithmetic of Finite Fields
 	// Algorithm 5.16
 
 	t, fp6 := e.t6, e.fp6
@@ -179,7 +180,7 @@ func (e *fp12) mul(c, a, b *fe12) {
 	fp6.sub(t[0], t[0], t[1])       // (a0 + a1)(b0 + b1) - v0
 	fp6.sub(&c[1], t[0], t[2])      // c1 = (a0 + a1)(b0 + b1) - v0 - v1
 	fp6.mulByNonResidue(t[2], t[2]) // βv1
-	fp6.add(&c[0], t[1], t[2])      // c0 = v0 + 4v1
+	fp6.add(&c[0], t[1], t[2])      // c0 = v0 + βv1
 }
 
 func (fp12 *fp12) mul034(a *fe12, b0, b3, b4 *fe2) {
@@ -188,11 +189,11 @@ func (fp12 *fp12) mul034(a *fe12, b0, b3, b4 *fe2) {
 	// Algorithm 21
 	// https://eprint.iacr.org/2010/354.pdf
 
-	fp6.mul0(t[0], &a[0], b0)      // t0 = a0b0
-	fp6.mul01(t[1], &a[1], b3, b4) // t1 = a1b1
-	fp2.add(&t[3][0], b0, b3)      // b0 + b10
-	fp6.add(t[2], &a[1], &a[0])    // a0 + a1
 	// t2 = (b0 + b10)v + b11v^2 + 0v^3
+	fp6.mul0(t[0], &a[0], b0)           // t0 = a0b0
+	fp6.mul01(t[1], &a[1], b3, b4)      // t1 = a1b1
+	fp2.add(&t[3][0], b0, b3)           // b00 + b10
+	fp6.add(t[2], &a[1], &a[0])         // a0 + a1
 	fp6.mul01(t[2], t[2], &t[3][0], b4) // c1 = t2(a0 + a1s)
 	fp6.sub(t[2], t[2], t[0])           // c1 = v1 - t0
 	fp6.sub(&a[1], t[2], t[1])          // c1 = v1 - t0 - t1
@@ -202,6 +203,10 @@ func (fp12 *fp12) mul034(a *fe12, b0, b3, b4 *fe2) {
 
 func (e *fp12) fp4Square(c0, c1, a0, a1 *fe2) {
 	t, fp2 := e.t2, e.fp2()
+	// Multiplication and Squaring on Pairing-Friendly Fields
+	// Karatsuba squaring algorithm
+	// https://eprint.iacr.org/2006/471
+
 	fp2.square(t[0], a0)
 	fp2.square(t[1], a1)
 	fp2.mulByNonResidue(t[2], t[1])
@@ -214,6 +219,9 @@ func (e *fp12) fp4Square(c0, c1, a0, a1 *fe2) {
 
 func (e *fp12) inverse(c, a *fe12) {
 	fp6, t := e.fp6, e.t6
+	// Guide to Pairing Based Cryptography
+	// Algorithm 5.16
+
 	fp6.square(t[0], &a[0])         // a0^2
 	fp6.square(t[1], &a[1])         // a1^2
 	fp6.mulByNonResidue(t[1], t[1]) // βa1^2

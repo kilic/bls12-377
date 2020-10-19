@@ -58,7 +58,7 @@ func TestG1Serialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !g1.IsZero(p0) {
-		t.Fatal("bad infinity serialization 3")
+		t.Fatal("infinity serialization failed")
 	}
 	for i := 0; i < fuz; i++ {
 		a := g1.rand()
@@ -69,7 +69,7 @@ func TestG1Serialization(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !g1.Equal(a, b) {
-			t.Fatal("bad serialization 3")
+			t.Fatal("serialization failed")
 		}
 	}
 }
@@ -206,7 +206,7 @@ func TestG1MultiExpExpected(t *testing.T) {
 	g.MulScalar(expected, one, big.NewInt(5))
 	_, _ = g.MultiExp(result, bases[:], scalars[:])
 	if !g.Equal(expected, result) {
-		t.Fatal("bad multi-exponentiation")
+		t.Fatal("multi-exponentiation failed")
 	}
 }
 
@@ -231,7 +231,7 @@ func TestG1MultiExp(t *testing.T) {
 	result := g.New()
 	_, _ = g.MultiExp(result, bases, scalars)
 	if !g.Equal(expected, result) {
-		t.Fatal("bad multi-exponentiation")
+		t.Fatal("multi-exponentiation failed")
 	}
 }
 
