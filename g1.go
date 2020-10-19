@@ -200,6 +200,25 @@ func (g *G1) Affine(p *PointG1) *PointG1 {
 	return p
 }
 
+// Affine returns the affine representation of the given point
+func (g *G1) AffineBatch(p []*PointG1) {
+	inverses := make([]fe, len(p))
+	for i := 0; i < len(p); i++ {
+		inverses[i].set(&p[i][2])
+	}
+	inverseBatch(inverses)
+	t := g.t
+	for i := 0; i < len(p); i++ {
+		if !g.IsAffine(p[i]) && !g.IsZero(p[i]) {
+			square(t[1], &inverses[i])
+			mul(&p[i][0], &p[i][0], t[1])
+			mul(t[0], &inverses[i], t[1])
+			mul(&p[i][1], &p[i][1], t[0])
+			p[i][2].one()
+		}
+	}
+}
+
 // Add adds two G1 points p1, p2 and assigns the result to point at first argument.
 func (g *G1) Add(r, p1, p2 *PointG1) *PointG1 {
 	// http://www.hyperelliptic.org/EFD/gp/auto-shortw-jacobian-0.html#addition-add-2007-bl
@@ -369,13 +388,15 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*Point
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
 
+	g.AffineBatch(points)
+
 	c := 3
 	if len(scalars) >= 32 {
 		c = int(math.Ceil(math.Log(float64(len(scalars)))))
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]PointG1, frBitSize/c+1)
+	windows := make([]*PointG1, frBitSize/c+1)
 	bucket := make([]PointG1, bucketSize)
 
 	for j := 0; j < len(windows); j++ {
@@ -387,7 +408,7 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*Point
 		for i := 0; i < len(scalars); i++ {
 			index := bucketSize & int(new(big.Int).Rsh(scalars[i], uint(c*j)).Int64())
 			if index != 0 {
-				g.Add(&bucket[index-1], &bucket[index-1], points[i])
+				g.AddMixed(&bucket[index-1], &bucket[index-1], points[i])
 			}
 		}
 
@@ -396,15 +417,17 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*big.Int) (*Point
 			g.Add(sum, sum, &bucket[i])
 			g.Add(acc, acc, sum)
 		}
-		windows[j].Set(acc)
+		windows[j] = g.New().Set(acc)
 	}
+
+	g.AffineBatch(windows)
 
 	acc := g.New()
 	for i := len(windows) - 1; i >= 0; i-- {
 		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.Add(acc, acc, &windows[i])
+		g.AddMixed(acc, acc, windows[i])
 	}
 	return r.Set(acc), nil
 }

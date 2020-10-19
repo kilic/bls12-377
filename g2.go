@@ -210,6 +210,25 @@ func (g *G2) Affine(p *PointG2) *PointG2 {
 	return p
 }
 
+// AffineBatch given multiple of points returns affine representations
+func (g *G2) AffineBatch(p []*PointG2) {
+	inverses := make([]fe2, len(p))
+	for i := 0; i < len(p); i++ {
+		inverses[i].set(&p[i][2])
+	}
+	g.f.inverseBatch(inverses)
+	t := g.t
+	for i := 0; i < len(p); i++ {
+		if !g.IsAffine(p[i]) && !g.IsZero(p[i]) {
+			g.f.square(t[1], &inverses[i])
+			g.f.mul(&p[i][0], &p[i][0], t[1])
+			g.f.mul(t[0], &inverses[i], t[1])
+			g.f.mul(&p[i][1], &p[i][1], t[0])
+			p[i][2].one()
+		}
+	}
+}
+
 // Add adds two G2 points p1, p2 and assigns the result to point at first argument.
 func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 	// http://www.hyperelliptic.org/EFD/gp/auto-shortw-jacobian-0.html#addition-add-2007-bl
@@ -379,13 +398,15 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
 
+	g.AffineBatch(points)
+
 	c := 3
 	if len(scalars) >= 32 {
 		c = int(math.Ceil(math.Log(float64(len(scalars)))))
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]PointG2, frBitSize/c+1)
+	windows := make([]*PointG2, frBitSize/c+1)
 	bucket := make([]PointG2, bucketSize)
 
 	for j := 0; j < len(windows); j++ {
@@ -406,15 +427,17 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 			g.Add(sum, sum, &bucket[i])
 			g.Add(acc, acc, sum)
 		}
-		windows[j].Set(acc)
+		windows[j] = g.New().Set(acc)
 	}
+
+	g.AffineBatch(windows)
 
 	acc := g.New()
 	for i := len(windows) - 1; i >= 0; i-- {
 		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.Add(acc, acc, &windows[i])
+		g.Add(acc, acc, windows[i])
 	}
 	return r.Set(acc), nil
 }

@@ -67,6 +67,26 @@ func TestG2IsOnCurve(t *testing.T) {
 	}
 }
 
+func TestG2BatchAffine(t *testing.T) {
+	n := 20
+	g := NewG2()
+	points0 := make([]*PointG2, n)
+	points1 := make([]*PointG2, n)
+	for i := 0; i < n; i++ {
+		points0[i] = g.rand()
+		points1[i] = g.New().Set(points0[i])
+		if g.IsAffine(points0[i]) {
+			t.Fatal("expect non affine point")
+		}
+	}
+	g.AffineBatch(points0)
+	for i := 0; i < n; i++ {
+		if !g.Equal(points0[i], points1[i]) {
+			t.Fatal("batch affine failed")
+		}
+	}
+}
+
 func TestG2AdditiveProperties(t *testing.T) {
 	g := NewG2()
 	t0, t1 := g.New(), g.New()
