@@ -10,6 +10,8 @@ import (
 // A point is accounted as in affine form if z is equal to one.
 type PointG2 [3]fe2
 
+var wnafMulWindowG2 uint = 6
+
 // Set copies valeus of one point to another.
 func (p *PointG2) Set(p2 *PointG2) *PointG2 {
 	p[0].set(&p2[0])
@@ -63,7 +65,7 @@ func newTempG2() tempG2 {
 
 // Q returns group order in big.Int.
 func (g *G2) Q() *big.Int {
-	return new(big.Int).Set(q)
+	return new(big.Int).Set(qBig)
 }
 
 func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
@@ -163,7 +165,7 @@ func (g *G2) Equal(p1, p2 *PointG2) bool {
 // InCorrectSubgroup checks whether given point is in correct subgroup.
 func (g *G2) InCorrectSubgroup(p *PointG2) bool {
 	tmp := &PointG2{}
-	g.MulScalar(tmp, p, q)
+	g.mulScalar(tmp, p, &q)
 	return g.IsZero(tmp)
 }
 
@@ -370,8 +372,29 @@ func (g *G2) Sub(c, a, b *PointG2) *PointG2 {
 	return c
 }
 
-// MulScalar multiplies a point by given scalar value in big.Int and assigns the result to point at first argument.
-func (g *G2) MulScalar(c, p *PointG2, e *big.Int) *PointG2 {
+// MulScalar multiplies a point by given scalar value and assigns the result to point at first argument.
+func (g *G2) MulScalar(r, p *PointG2, e *Fr) *PointG2 {
+	return g.wnafMulFr(r, p, e)
+}
+
+// MulScalarBig multiplies a point by given scalar value in big.Int and assigns the result to point at first argument.
+func (g *G2) MulScalarBig(r, p *PointG2, e *big.Int) *PointG2 {
+	return g.wnafMulBig(r, p, e)
+}
+
+func (g *G2) mulScalar(c, p *PointG2, e *Fr) *PointG2 {
+	q, n := &PointG2{}, &PointG2{}
+	n.Set(p)
+	for i := 0; i < frBitSize; i++ {
+		if e.Bit(i) {
+			g.Add(q, q, n)
+		}
+		g.Double(n, n)
+	}
+	return c.Set(q)
+}
+
+func (g *G2) mulScalarBig(c, p *PointG2, e *big.Int) *PointG2 {
 	q, n := &PointG2{}, &PointG2{}
 	n.Set(p)
 	l := e.BitLen()
@@ -384,21 +407,60 @@ func (g *G2) MulScalar(c, p *PointG2, e *big.Int) *PointG2 {
 	return c.Set(q)
 }
 
-// ClearCofactor maps given a G2 point to correct subgroup
-func (g *G2) ClearCofactor(p *PointG2) *PointG2 {
-	return g.wnafMul(p, p, cofactorG2)
+func (g *G2) wnafMulFr(r, p *PointG2, e *Fr) *PointG2 {
+	wnaf := e.toWNAF(wnafMulWindowG2)
+	return g.wnafMul(r, p, wnaf)
 }
 
-// MultiExp calculates multi exponentiation. Given pairs of G2 point and scalar values
-// (P_0, e_0), (P_1, e_1), ... (P_n, e_n) calculates r = e_0 * P_0 + e_1 * P_1 + ... + e_n * P_n
+func (g *G2) wnafMulBig(r, p *PointG2, e *big.Int) *PointG2 {
+	wnaf := bigToWNAF(e, wnafMulWindowG2)
+	return g.wnafMul(r, p, wnaf)
+}
+
+func (g *G2) wnafMul(c, p *PointG2, wnaf nafNumber) *PointG2 {
+
+	l := (1 << (wnafMulWindowG2 - 1))
+
+	twoP, acc := g.New(), new(PointG2).Set(p)
+	g.Double(twoP, p)
+	g.Affine(twoP)
+
+	// table = {p, 3p, 5p, ..., -p, -3p, -5p}
+	table := make([]*PointG2, l*2)
+	table[0], table[l] = g.New(), g.New()
+	table[0].Set(p)
+	g.Neg(table[l], table[0])
+
+	for i := 1; i < l; i++ {
+		g.AddMixed(acc, acc, twoP)
+		table[i], table[i+l] = g.New(), g.New()
+		table[i].Set(acc)
+		g.Neg(table[i+l], table[i])
+	}
+
+	z := g.Zero()
+	for i := len(wnaf) - 1; i >= 0; i-- {
+		if wnaf[i] > 0 {
+			g.Add(z, z, table[wnaf[i]>>1])
+		} else if wnaf[i] < 0 {
+			g.Add(z, z, table[((-wnaf[i])>>1)+l])
+		}
+		if i != 0 {
+			g.Double(z, z)
+		}
+	}
+	return c.Set(z)
+}
+
+// MultiExpBig calculates multi exponentiation. Scalar values are received as big.Int type.
+// Given pairs of G2 point and scalar values `(P_0, e_0), (P_1, e_1), ... (P_n, e_n)`,
+// calculates `r = e_0 * P_0 + e_1 * P_1 + ... + e_n * P_n`.
 // Length of points and scalars are expected to be equal, otherwise an error is returned.
 // Result is assigned to point at first argument.
-func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*PointG2, error) {
+func (g *G2) MultiExpBig(r *PointG2, points []*PointG2, scalars []*big.Int) (*PointG2, error) {
 	if len(points) != len(scalars) {
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
-
-	g.AffineBatch(points)
 
 	c := 3
 	if len(scalars) >= 32 {
@@ -406,7 +468,7 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 	}
 
 	bucketSize := (1 << c) - 1
-	windows := make([]*PointG2, frBitSize/c+1)
+	windows := make([]PointG2, 255/c+1)
 	bucket := make([]PointG2, bucketSize)
 
 	for j := 0; j < len(windows); j++ {
@@ -427,6 +489,56 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 			g.Add(sum, sum, &bucket[i])
 			g.Add(acc, acc, sum)
 		}
+		windows[j].Set(acc)
+	}
+
+	acc := g.New()
+	for i := len(windows) - 1; i >= 0; i-- {
+		for j := 0; j < c; j++ {
+			g.Double(acc, acc)
+		}
+		g.Add(acc, acc, &windows[i])
+	}
+	return r.Set(acc), nil
+}
+
+// MultiExp calculates multi exponentiation. Given pairs of G2 point and scalar values `(P_0, e_0), (P_1, e_1), ... (P_n, e_n)`,
+// calculates `r = e_0 * P_0 + e_1 * P_1 + ... + e_n * P_n`. Length of points and scalars are expected to be equal,
+// otherwise an error is returned. Result is assigned to point at first argument.
+func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*Fr) (*PointG2, error) {
+	if len(points) != len(scalars) {
+		return nil, errors.New("point and scalar vectors should be in same length")
+	}
+
+	g.AffineBatch(points)
+
+	c := 3
+	if len(scalars) >= 32 {
+		c = int(math.Ceil(math.Log(float64(len(scalars)))))
+	}
+
+	bucketSize := (1 << c) - 1
+	windows := make([]*PointG2, 255/c+1)
+	bucket := make([]PointG2, bucketSize)
+
+	for j := 0; j < len(windows); j++ {
+
+		for i := 0; i < bucketSize; i++ {
+			bucket[i].Zero()
+		}
+
+		for i := 0; i < len(scalars); i++ {
+			index := bucketSize & int(scalars[i].sliceUint64(c*j))
+			if index != 0 {
+				g.AddMixed(&bucket[index-1], &bucket[index-1], points[i])
+			}
+		}
+
+		acc, sum := g.New(), g.New()
+		for i := bucketSize - 1; i >= 0; i-- {
+			g.Add(sum, sum, &bucket[i])
+			g.Add(acc, acc, sum)
+		}
 		windows[j] = g.New().Set(acc)
 	}
 
@@ -437,52 +549,12 @@ func (g *G2) MultiExp(r *PointG2, points []*PointG2, scalars []*big.Int) (*Point
 		for j := 0; j < c; j++ {
 			g.Double(acc, acc)
 		}
-		g.Add(acc, acc, windows[i])
+		g.AddMixed(acc, acc, windows[i])
 	}
 	return r.Set(acc), nil
 }
 
-func (g *G2) wnafMul(c, p *PointG2, e *big.Int) *PointG2 {
-	windowSize := 6
-
-	l := (1 << (windowSize - 1))
-	tablePositive := make([]PointG2, l)
-	tableNegative := make([]PointG2, l)
-
-	twoP, acc := g.New(), new(PointG2).Set(p)
-	g.Double(twoP, p)
-
-	// p
-	tablePositive[0].Set(acc)
-	// -p
-	g.Neg(&tableNegative[0], acc)
-
-	for i := 1; i < l; i++ {
-		g.Add(acc, acc, twoP)
-		// 3p, 5p, 7p ...
-		tablePositive[i].Set(acc)
-		// -3p, -5p, -7p ...
-		g.Neg(&tableNegative[i], acc)
-	}
-
-	wnaf := toWNAF(e, windowSize)
-
-	q := g.Zero()
-
-	for i := len(wnaf) - 1; i >= 0; i-- {
-
-		if wnaf[i] > 0 {
-
-			g.Add(q, q, &tablePositive[wnaf[i]>>1])
-		} else if wnaf[i] < 0 {
-
-			g.Add(q, q, &tableNegative[(-wnaf[i])>>1])
-		}
-
-		if i != 0 {
-			g.Double(q, q)
-		}
-
-	}
-	return c.Set(q)
+// ClearCofactor maps given a G2 point to correct subgroup
+func (g *G2) ClearCofactor(p *PointG2) *PointG2 {
+	return g.wnafMulBig(p, p, cofactorG2)
 }

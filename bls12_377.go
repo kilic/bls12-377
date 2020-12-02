@@ -4,15 +4,9 @@ const fpNumberOfLimbs = 6
 const fpByteSize = 48
 const fpBitSize = 377
 const sixWordBitSize = 384
-const frBitSize = 253
 
-/*
-	Field Constants
-*/
-
-// Base field modulus
+// Base Field
 // p = 0x01ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001
-
 // Size of six words
 // r = 2 ^ 384
 
@@ -67,9 +61,6 @@ var sNonResidue = &fe{0x1c104955744e6e0f, 0xf1bd15c3898dd1af, 0x76da78169a7f3950
 	Curve Constants
 */
 
-// Group order
-var q = bigFromHex("0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001")
-
 // b coefficient for G1
 // b = 1
 var b = &fe{0x02cdffffffffff68, 0x51409f837fffffb1, 0x9f7db3a98a7d3ff2, 0x7b4e97b76e7c6305, 0x4cf495bf803c84e8, 0x008d6661e2fdf49a}
@@ -119,6 +110,26 @@ var g2One = PointG2{
 }
 
 var G2One = g2One
+
+//Scalar Field
+// q = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+// Size of six words
+// qr = 2 ^ 256
+
+var qBig = bigFromHex("0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001")
+var q = Fr{0x0a11800000000001, 0x59aa76fed0000001, 0x60b44d1e5c37b001, 0x12ab655e9a2ca556}
+
+// -q^(-1) mod 2^64
+var qinp uint64 = 0xa117fffffffffff
+
+// supress warning: qinp is used in assembly code
+var _ = qinp
+
+// qr1 = qr mod q
+var qr1 = &Fr{0x7d1c7ffffffffff3, 0x7257f50f6ffffff2, 0x16d81575512c0fee, 0x0d4bda322bbb9a9d}
+
+// qr2 = qr^2 mod q
+var qr2 = &Fr{0x25d577bab861857b, 0xcc2c27b58860591f, 0xa7cc008fe5dc8593, 0x011fdae7eff1c939}
 
 /*
 	Frobenius Coeffs
