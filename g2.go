@@ -86,7 +86,7 @@ func (g *G2) fromBytesUnchecked(in []byte) (*PointG2, error) {
 // Point (0, 0) is considered as infinity.
 func (g *G2) FromBytes(in []byte) (*PointG2, error) {
 	if len(in) != 4*fpByteSize {
-		return nil, errors.New("input string should be 192 bytes")
+		return nil, errors.New("input string length must be equal to 192 bytes")
 	}
 	p0, err := g.f.fromBytes(in[:2*fpByteSize])
 	if err != nil {
@@ -239,6 +239,9 @@ func (g *G2) Add(r, p1, p2 *PointG2) *PointG2 {
 	}
 	if g.IsZero(p2) {
 		return r.Set(p1)
+	}
+	if g.IsAffine(p2) {
+		return g.AddMixed(r, p1, p2)
 	}
 	t := g.t
 	g.f.square(t[7], &p1[2])    // z1z1
