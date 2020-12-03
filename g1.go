@@ -187,19 +187,25 @@ func (g *G1) IsAffine(p *PointG1) bool {
 
 // Affine returns the affine representation of the given point
 func (g *G1) Affine(p *PointG1) *PointG1 {
+	return g.affine(p, p)
+}
+
+func (g *G1) affine(r, p *PointG1) *PointG1 {
 	if g.IsZero(p) {
-		return p
+		return r.Zero()
 	}
 	if !g.IsAffine(p) {
 		t := g.t
 		inverse(t[0], &p[2])    // z^-1
 		square(t[1], t[0])      // z^-2
-		mul(&p[0], &p[0], t[1]) // x = x * z^-2
+		mul(&r[0], &p[0], t[1]) // x = x * z^-2
 		mul(t[0], t[0], t[1])   // z^-3
-		mul(&p[1], &p[1], t[0]) // y = y * z^-3
-		p[2].one()              // z = 1
+		mul(&r[1], &p[1], t[0]) // y = y * z^-3
+		r[2].one()              // z = 1
+	} else {
+		r.Set(p)
 	}
-	return p
+	return r
 }
 
 // Affine returns the affine representation of the given point
@@ -367,12 +373,12 @@ func (g *G1) Sub(c, a, b *PointG1) *PointG1 {
 
 // MulScalar multiplies a point by given scalar value and assigns the result to point at first argument.
 func (g *G1) MulScalar(r, p *PointG1, e *Fr) *PointG1 {
-	return g.wnafMulFr(r, p, e)
+	return g.glvMulFr(r, p, e)
 }
 
 // MulScalar multiplies a point by given scalar value in big.Int and assigns the result to point at first argument.
 func (g *G1) MulScalarBig(r, p *PointG1, e *big.Int) *PointG1 {
-	return g.wnafMulBig(r, p, e)
+	return g.glvMulBig(r, p, e)
 }
 
 func (g *G1) mulScalar(c, p *PointG1, e *Fr) *PointG1 {
@@ -444,6 +450,78 @@ func (g *G1) wnafMul(c, p *PointG1, wnaf nafNumber) *PointG1 {
 		}
 	}
 	return c.Set(q)
+}
+
+func (g *G1) glvMulFr(r, p *PointG1, e *Fr) *PointG1 {
+	return g.glvMul(r, p, new(glvVectorFr).new(e))
+}
+
+func (g *G1) glvMulBig(r, p *PointG1, e *big.Int) *PointG1 {
+	return g.glvMul(r, p, new(glvVectorBig).new(e))
+}
+
+func (g *G1) glvMul(r, p0 *PointG1, v glvVector) *PointG1 {
+
+	w := glvMulWindowG1
+	l := 1 << (w - 1)
+
+	// prepare tables
+	// tableK1 = {P, 3P, 5P, ...}
+	// tableK2 = {λP, 3λP, 5λP, ...}
+	tableK1, tableK2 := make([]*PointG1, l), make([]*PointG1, l)
+	double := g.New()
+	g.Double(double, p0)
+	g.affine(double, double)
+	tableK1[0] = new(PointG1)
+	tableK1[0].Set(p0)
+	for i := 1; i < l; i++ {
+		tableK1[i] = new(PointG1)
+		g.AddMixed(tableK1[i], tableK1[i-1], double)
+	}
+	g.AffineBatch(tableK1)
+	for i := 0; i < l; i++ {
+		tableK2[i] = new(PointG1)
+		g.glvEndomorphism(tableK2[i], tableK1[i])
+	}
+
+	// recode small scalars
+	naf1, naf2 := v.wnaf(w)
+	lenNAF1, lenNAF2 := len(naf1), len(naf2)
+	lenNAF := lenNAF1
+	if lenNAF2 > lenNAF {
+		lenNAF = lenNAF2
+	}
+
+	acc, p1 := g.New(), g.New()
+
+	// function for naf addition
+	add := func(table []*PointG1, naf int) {
+		if naf != 0 {
+			nafAbs := naf
+			if nafAbs < 0 {
+				nafAbs = -nafAbs
+			}
+			p1.Set(table[nafAbs>>1])
+			if naf < 0 {
+				g.Neg(p1, p1)
+			}
+			g.AddMixed(acc, acc, p1)
+		}
+	}
+
+	// sliding
+	for i := lenNAF - 1; i >= 0; i-- {
+		if i < lenNAF1 {
+			add(tableK1, naf1[i])
+		}
+		if i < lenNAF2 {
+			add(tableK2, naf2[i])
+		}
+		if i != 0 {
+			g.Double(acc, acc)
+		}
+	}
+	return r.Set(acc)
 }
 
 // MultiExpBig calculates multi exponentiation. Scalar values are received as big.Int type.

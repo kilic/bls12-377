@@ -228,16 +228,24 @@ func TestG1MultiplicationCross(t *testing.T) {
 		a := g.randCorrect()
 		s, _ := new(Fr).Rand(rand.Reader)
 		sBig := s.ToBig()
-		res0, res1, res2 := g.New(), g.New(), g.New()
+		res0, res1, res2, res3, res4 := g.New(), g.New(), g.New(), g.New(), g.New()
 
 		g.mulScalar(res0, a, s)
-		g.wnafMulFr(res1, a, s)
-		g.wnafMulBig(res2, a, sBig)
+		g.glvMulFr(res1, a, s)
+		g.glvMulBig(res2, a, sBig)
+		g.wnafMulFr(res3, a, s)
+		g.wnafMulBig(res4, a, sBig)
 
 		if !g.Equal(res0, res1) {
-			t.Fatal("cross multiplication failed (wnaf, fr)", i)
+			t.Fatal("cross multiplication failed (glv, fr)", i)
 		}
 		if !g.Equal(res0, res2) {
+			t.Fatal("cross multiplication failed (glv, big)", i)
+		}
+		if !g.Equal(res0, res3) {
+			t.Fatal("cross multiplication failed (wnaf, fr)", i)
+		}
+		if !g.Equal(res0, res4) {
 			t.Fatal("cross multiplication failed (wnaf, big)", i)
 		}
 	}
@@ -366,6 +374,37 @@ func BenchmarkG1MulWNAF(t *testing.B) {
 		})
 	}
 }
+
+func BenchmarkG1MulGLV(t *testing.B) {
+
+	g := NewG1()
+	p := new(PointG1).Set(&g1One)
+	s, _ := new(Fr).Rand(rand.Reader)
+	sBig := s.ToBig()
+	res := new(PointG1)
+	t.Run("Naive", func(t *testing.B) {
+		t.ResetTimer()
+		for i := 0; i < t.N; i++ {
+			g.mulScalar(res, p, s)
+		}
+	})
+	for i := 1; i < 8; i++ {
+		glvMulWindowG1 = uint(i)
+		t.Run(fmt.Sprintf("Fr, window: %d", i), func(t *testing.B) {
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				g.glvMulFr(res, p, s)
+			}
+		})
+		t.Run(fmt.Sprintf("Big, window: %d", i), func(t *testing.B) {
+			t.ResetTimer()
+			for i := 0; i < t.N; i++ {
+				g.glvMulBig(res, p, sBig)
+			}
+		})
+	}
+}
+
 func BenchmarkG1MultiExp(t *testing.B) {
 	g := NewG1()
 	v := func(n int) ([]*PointG1, []*Fr) {

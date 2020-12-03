@@ -6,13 +6,14 @@ import (
 	"math/big"
 )
 
-// halfR = 2**256 / 2
-var halfR = &wideFr{0, 0, 0, 0x8000000000000000, 0, 0, 0}
-
 const frByteSize = 32
 const frBitSize = 253
 const frNumberOfLimbs = 4
 const fourWordBitSize = 256
+
+// halfR = 2**256 / 2
+var halfR = &wideFr{0, 0, 0, 0x8000000000000000, 0, 0, 0}
+var halfRBig = bigFromHex("0x8000000000000000000000000000000000000000000000000000000000000000")
 
 type Fr [4]uint64
 type wideFr [8]uint64
