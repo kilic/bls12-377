@@ -12,15 +12,44 @@ func (g *G2) one() *PointG2 {
 }
 
 func (g *G2) rand() *PointG2 {
-	k, err := new(Fr).Rand(rand.Reader)
-	if err != nil {
-		panic(err)
+	p := &PointG2{}
+	z, _ := new(fe2).rand(rand.Reader)
+	z6, bz6 := new(fe2), new(fe2)
+	g.f.square(z6, z)
+	g.f.square(z6, z6)
+	g.f.mul(z6, z6, z)
+	g.f.mul(z6, z6, z)
+	g.f.mul(bz6, z6, b2)
+	for {
+		x, _ := new(fe2).rand(rand.Reader)
+		y := new(fe2)
+		g.f.square(y, x)
+		g.f.mul(y, y, x)
+		g.f.add(y, y, bz6)
+		if g.f.sqrt(y, y) {
+			p.Set(&PointG2{*x, *y, *z})
+			break
+		}
 	}
-	return g.wnafMulFr(&PointG2{}, g.one(), k)
+	if !g.IsOnCurve(p) {
+		panic("rand point must be on curve")
+	}
+	if g.InCorrectSubgroup(p) {
+		panic("rand point must be out of correct subgroup")
+	}
+	return p
+}
+
+func (g *G2) randCorrect() *PointG2 {
+	p := g.ClearCofactor(g.rand())
+	if !g.InCorrectSubgroup(p) {
+		panic("must be in correct subgroup")
+	}
+	return p
 }
 
 func (g *G2) randAffine() *PointG2 {
-	return g.Affine(g.rand())
+	return g.Affine(g.randCorrect())
 }
 
 func (g *G2) new() *PointG2 {
@@ -124,7 +153,7 @@ func TestG2AdditiveProperties(t *testing.T) {
 		g.Double(t0, a)
 		g.Sub(t0, t0, a)
 		if !g.Equal(t0, a) || !g.IsOnCurve(t0) {
-			t.Fatal(" (2 * a) - a == a")
+			t.Fatal("(2 * a) - a == a")
 		}
 		g.Add(t0, a, b)
 		g.Add(t1, b, a)
@@ -201,7 +230,7 @@ func TestG2MultiplicationCross(t *testing.T) {
 	g := NewG2()
 	for i := 0; i < fuz; i++ {
 
-		a := g.rand()
+		a := g.randCorrect()
 		s, _ := new(Fr).Rand(rand.Reader)
 		sBig := s.ToBig()
 		res0, res1, res2, res3, res4 := g.New(), g.New(), g.New(), g.New(), g.New()
@@ -232,29 +261,29 @@ func TestG2MultiplicativeProperties(t *testing.T) {
 	t0, t1 := g.New(), g.New()
 	zero := g.Zero()
 	for i := 0; i < fuz; i++ {
-		a := g.rand()
+		a := g.randCorrect()
 		s1, _ := new(Fr).Rand(rand.Reader)
 		s2, _ := new(Fr).Rand(rand.Reader)
 		s3, _ := new(Fr).Rand(rand.Reader)
 		sone := &Fr{1}
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
-			t.Fatal(" 0 ^ s == 0")
+			t.Fatal("0 ^ s == 0")
 		}
 		g.MulScalar(t0, a, sone)
 		if !g.Equal(t0, a) {
-			t.Fatal(" a ^ 1 == a")
+			t.Fatal("a ^ 1 == a")
 		}
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
-			t.Fatal(" 0 ^ s == a")
+			t.Fatal("0 ^ s == a")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t0, t0, s2)
 		s3.Mul(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Fatal(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
+			t.Fatal("(a ^ s1) ^ s2 == a ^ (s1 * s2)")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t1, a, s2)
@@ -262,7 +291,7 @@ func TestG2MultiplicativeProperties(t *testing.T) {
 		s3.Add(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Fatal(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
+			t.Fatal("(a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
 	}
 }
@@ -347,6 +376,20 @@ func TestG2MultiExpBig(t *testing.T) {
 		_, _ = g.MultiExpBig(result, bases, scalars)
 		if !g.Equal(expected, result) {
 			t.Fatal("multi-exponentiation failed")
+		}
+	}
+}
+
+func TestG2ClearCofactor(t *testing.T) {
+	g := NewG2()
+	for i := 0; i < fuz; i++ {
+		p0 := g.rand()
+		if g.InCorrectSubgroup(p0) {
+			t.Fatal("rand point should be out of correct subgroup")
+		}
+		g.ClearCofactor(p0)
+		if !g.InCorrectSubgroup(p0) {
+			t.Fatal("cofactor clearing is failed")
 		}
 	}
 }
@@ -452,5 +495,14 @@ func BenchmarkG2ClearCofactor(t *testing.B) {
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 		g2.ClearCofactor(a)
+	}
+}
+
+func BenchmarkG2SubgroupCheck(t *testing.B) {
+	g2 := NewG2()
+	a := g2.rand()
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		g2.InCorrectSubgroup(a)
 	}
 }

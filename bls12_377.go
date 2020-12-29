@@ -39,6 +39,9 @@ var twoInv = &fe{0x8166ffffffffffb4, 0x28a04fc1bfffffd8, 0xcfbed9d4c53e9ff9, 0x3
 // pMinus1Over2 = (p - 1) / 2
 var pMinus1Over2 = bigFromHex("0x00d71d230be28875631d82e03650a49d8d116cf9807a89c78f79b117dd04a4000b85aea2180000004284600000000000")
 
+// pMinus1Over4 = (p - 1) / 4
+var pMinus1Over4 = bigFromHex("0x006b8e9185f1443ab18ec1701b28524ec688b67cc03d44e3c7bcd88bee82520005c2d7510c0000002142300000000000")
+
 // s = p >> 46
 // var s = bigFromHex("0x06b8e9185f1443ab18ec1701b28524ec688b67cc03d44e3c7bcd88bee82520005c2d7510c00000021423")
 
@@ -57,9 +60,7 @@ var nonResidue2 = &fe2{
 // sNonResidue = nonResidue ^ s
 var sNonResidue = &fe{0x1c104955744e6e0f, 0xf1bd15c3898dd1af, 0x76da78169a7f3950, 0xee086c1fe367c337, 0xf95564f4cbc1b61f, 0x00f3c1414ef58c54}
 
-/*
-	Curve Constants
-*/
+//	Curve Constants
 
 // b coefficient for G1
 // b = 1
@@ -131,9 +132,22 @@ var qr1 = &Fr{0x7d1c7ffffffffff3, 0x7257f50f6ffffff2, 0x16d81575512c0fee, 0x0d4b
 // qr2 = qr^2 mod q
 var qr2 = &Fr{0x25d577bab861857b, 0xcc2c27b58860591f, 0xa7cc008fe5dc8593, 0x011fdae7eff1c939}
 
-/*
-	Frobenius Coeffs
-*/
+// Psi values for faster cofactor clearing
+// z = u + 1
+
+var psix = &fe2{
+	// z ^ (( p ^ 1 - 1) / 3)
+	fe{0x5892506da58478da, 0x133366940ac2a74b, 0x9b64a150cdf726cf, 0x5cc426090a9c587e, 0x5cf848adfdcd640c, 0x004702bf3ac02380},
+	fe{0, 0, 0, 0, 0, 0},
+}
+
+var psiy = &fe2{
+	// z ^ ((p ^ 3 - 1) / 6)
+	fe{0x982c13d9d084771f, 0xfd49de0c6da34a32, 0x61a530d183ab0e53, 0xdf8fe44106dd9879, 0x40f29b58d88472bc, 0x0158723199046d5d},
+	fe{0, 0, 0, 0, 0, 0},
+}
+
+//	Frobenius Coeffs
 
 // z = -1
 var frobeniusCoeffs2 = [2]fe{
@@ -275,8 +289,6 @@ var frobeniusCoeffs12 = [12]fe2{
 	},
 }
 
-/*
-	x
-*/
+//	x
 
 var x = bigFromHex("0x8508c00000000001")

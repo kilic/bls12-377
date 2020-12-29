@@ -77,7 +77,7 @@ func (g *G1) fromBytesUnchecked(in []byte) (*PointG1, error) {
 // (0, 0) is considered as infinity.
 func (g *G1) FromBytes(in []byte) (*PointG1, error) {
 	if len(in) != 2*fpByteSize {
-		return nil, errors.New("input string lenght must be 96 bytes")
+		return nil, errors.New("input string lenght must be equal to 96 bytes")
 	}
 	p0, err := fromBytes(in[:fpByteSize])
 	if err != nil {
@@ -151,13 +151,6 @@ func (g *G1) Equal(p1, p2 *PointG1) bool {
 	mul(t[1], t[1], &p1[1])
 	mul(t[0], t[0], &p2[1])
 	return t[0].equal(t[1]) && t[2].equal(t[3])
-}
-
-// InCorrectSubgroup checks whether given point is in correct subgroup.
-func (g *G1) InCorrectSubgroup(p *PointG1) bool {
-	tmp := &PointG1{}
-	g.wnafMulFr(tmp, p, &q)
-	return g.IsZero(tmp)
 }
 
 // IsOnCurve checks a G1 point is on curve.
@@ -534,6 +527,8 @@ func (g *G1) MultiExpBig(r *PointG1, points []*PointG1, scalars []*big.Int) (*Po
 		return nil, errors.New("point and scalar vectors should be in same length")
 	}
 
+	g.AffineBatch(points)
+
 	c := 3
 	if len(scalars) >= 32 {
 		c = int(math.Ceil(math.Log(float64(len(scalars)))))
@@ -629,4 +624,35 @@ func (g *G1) MultiExp(r *PointG1, points []*PointG1, scalars []*Fr) (*PointG1, e
 // ClearCofactor maps given a G1 point to correct subgroup
 func (g *G1) ClearCofactor(p *PointG1) *PointG1 {
 	return g.wnafMulBig(p, p, cofactorG1)
+}
+
+// InCorrectSubgroup checks whether given point is in correct subgroup.
+func (g *G1) InCorrectSubgroup(p *PointG1) bool {
+
+	// Faster Subgroup Checks for BLS12-381
+	// S. Bowe
+	// https://eprint.iacr.org/2019/814.pdf
+
+	mulZ := func(p *PointG1) {
+		// z = [(x^2 − 1)/3]
+		z := &Fr{0x58b0800000000000, 0x170b5d4430000000}
+		e := z.toWNAF(wnafMulWindowG1)
+		g.wnafMul(p, p, e)
+	}
+
+	sigma := func(p *PointG1) {
+		mul(&p[0], &p[0], glvPhi1)
+	}
+
+	// [(x^2 − 1)/3](2σ(P) − P − σ^2(P)) − σ^2(P) ?= O
+	t0 := g.New().Set(p)
+	sigma(t0)
+	t1 := g.New().Set(t0) // σ(P)
+	sigma(t0)             // σ^2(P)
+	g.Double(t1, t1)      // 2σ(P)
+	g.Sub(t1, t1, p)      // 2σ(P) − P
+	g.Sub(t1, t1, t0)     // 2σ(P) − P − σ^2(P)
+	mulZ(t1)              // [(x^2 − 1)/3](2σ(P) − P − σ^2(P))
+	g.Sub(t1, t1, t0)     // [(x^2 − 1)/3](2σ(P) − P − σ^2(P)) − σ^2(P)
+	return g.IsZero(t1)
 }

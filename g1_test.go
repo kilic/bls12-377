@@ -41,7 +41,11 @@ func (g *G1) rand() *PointG1 {
 }
 
 func (g *G1) randCorrect() *PointG1 {
-	return g.ClearCofactor(g.rand())
+	p := g.ClearCofactor(g.rand())
+	if !g.InCorrectSubgroup(p) {
+		panic("must be in correct subgroup")
+	}
+	return p
 }
 
 func (g *G1) randAffine() *PointG1 {
@@ -263,22 +267,22 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		sone := &Fr{1}
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
-			t.Fatal(" 0 ^ s == 0")
+			t.Fatal("0 ^ s == 0")
 		}
 		g.MulScalar(t0, a, sone)
 		if !g.Equal(t0, a) {
-			t.Fatal(" a ^ 1 == a")
+			t.Fatal("a ^ 1 == a")
 		}
 		g.MulScalar(t0, zero, s1)
 		if !g.Equal(t0, zero) {
-			t.Fatal(" 0 ^ s == a")
+			t.Fatal("0 ^ s == a")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t0, t0, s2)
 		s3.Mul(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Fatal(" (a ^ s1) ^ s2 == a ^ (s1 * s2)")
+			t.Fatal("(a ^ s1) ^ s2 == a ^ (s1 * s2)")
 		}
 		g.MulScalar(t0, a, s1)
 		g.MulScalar(t1, a, s2)
@@ -286,7 +290,7 @@ func TestG1MultiplicativeProperties(t *testing.T) {
 		s3.Add(s1, s2)
 		g.MulScalar(t1, a, s3)
 		if !g.Equal(t0, t1) {
-			t.Fatal(" (a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
+			t.Fatal("(a ^ s1) + (a ^ s2) == a ^ (s1 + s2)")
 		}
 	}
 }
@@ -320,6 +324,58 @@ func TestG1MultiExpBigExpected(t *testing.T) {
 	_, _ = g.MultiExpBig(result, bases[:], scalars[:])
 	if !g.Equal(expected, result) {
 		t.Fatal("multi-exponentiation failed")
+	}
+}
+
+func TestG1MultiExp(t *testing.T) {
+	g := NewG1()
+	for n := 1; n < 1024+1; n = n * 2 {
+		bases := make([]*PointG1, n)
+		scalars := make([]*Fr, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = new(Fr).Rand(rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		expected, tmp := g.New(), g.New()
+		for i := 0; i < n; i++ {
+			g.mulScalar(tmp, bases[i], scalars[i])
+			g.Add(expected, expected, tmp)
+		}
+		result := g.New()
+		_, _ = g.MultiExp(result, bases, scalars)
+		if !g.Equal(expected, result) {
+			t.Fatal("multi-exponentiation failed")
+		}
+	}
+}
+
+func TestG1MultiExpBig(t *testing.T) {
+	g := NewG1()
+	for n := 1; n < 1024+1; n = n * 2 {
+		bases := make([]*PointG1, n)
+		scalars := make([]*big.Int, n)
+		var err error
+		for i := 0; i < n; i++ {
+			scalars[i], err = rand.Int(rand.Reader, qBig)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bases[i] = g.rand()
+		}
+		expected, tmp := g.New(), g.New()
+		for i := 0; i < n; i++ {
+			g.mulScalarBig(tmp, bases[i], scalars[i])
+			g.Add(expected, expected, tmp)
+		}
+		result := g.New()
+		_, _ = g.MultiExpBig(result, bases, scalars)
+		if !g.Equal(expected, result) {
+			t.Fatal("multi-exponentiation failed")
+		}
 	}
 }
 

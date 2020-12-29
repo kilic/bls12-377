@@ -8,6 +8,50 @@ import (
 	"testing"
 )
 
+func (e *fp2) sqrt(out, in *fe2) bool {
+	// implemented for tests
+	C := new(fe2)
+	_, _ = C[0].setString("0x0014e085301446626974096803f243c11f6e5040e25acc8ed051435f0adff697ee7ac7a67918f9e626cd8b128e5d886d")
+	_, _ = C[1].setString("0x01a180ecebac7cc8a95500b90ae1ebb19eec113708742dee1b779facc5b909c9a9ffffc2476646664005a6b9a7abc345")
+
+	negOne := new(fe2)
+	e.neg(negOne, new(fe2).one())
+
+	D, E, F, DC := new(fe2), new(fe2), new(fe2), new(fe2)
+	e.exp(D, C, pMinus1Over2)
+	e.mul(DC, D, C)
+	e.square(F, DC)
+	e.inverse(E, DC)
+
+	B := new(fe2)
+	e.exp(B, in, pMinus1Over4)
+
+	BQB, BQ, a0 := new(fe2), new(fe2), new(fe2)
+
+	e.frobeniusMap1(BQ.set(B)) // b ^ q
+	e.mul(BQB, BQ, B)          // b ^ (q + 1)
+	e.square(a0, BQB)          // b ^ (2 * (q + 1))
+
+	if a0.equal(negOne) {
+		return false
+	}
+
+	v, u := new(fe2), new(fe)
+	e.square(v, B)  // b^2
+	e.mul(v, v, in) // b^2 * a
+
+	if BQB.equal(new(fe2).one()) {
+		sqrt(u, &v[0])
+		e.mul0(out, BQ, u)
+	} else {
+		e.mul(v, v, F) // b^2 * a * f
+		sqrt(u, &v[0])
+		e.mul(v, BQ, E)
+		e.mul0(out, v, u)
+	}
+	return true
+}
+
 func TestFpSerialization(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
 		in := make([]byte, fpByteSize)
@@ -447,20 +491,18 @@ func TestFpBatchInversion(t *testing.T) {
 }
 
 func TestFpSquareRoot(t *testing.T) {
-	r := new(fe)
-	if sqrt(r, nonResidue1) {
+	if sqrt(new(fe), nonResidue1) {
 		t.Fatal("non residue cannot have a sqrt")
 	}
 	for i := 0; i < fuz; i++ {
 		a, _ := new(fe).rand(rand.Reader)
-		aa, rr, r := &fe{}, &fe{}, &fe{}
-		square(aa, a)
-		if !sqrt(r, aa) {
-			t.Fatal("sqrt failed")
-		}
-		square(rr, r)
-		if !rr.equal(aa) {
-			t.Fatal("sqrt failed")
+		r0 := new(fe)
+		d0 := sqrt(r0, a)
+		if d0 {
+			square(r0, r0)
+			if !r0.equal(a) {
+				t.Fatal("sqrt failed")
+			}
 		}
 	}
 }
@@ -752,6 +794,25 @@ func TestFp2BatchInversion(t *testing.T) {
 		for j := 0; j < n; j++ {
 			if !e0[j].equal(&e1[j]) {
 				t.Fatal("batch inversion failed")
+			}
+		}
+	}
+}
+
+func TestFp2SquareRoot(t *testing.T) {
+	f := newFp2()
+	if f.sqrt(new(fe2), nonResidue2) {
+		t.Fatal("non residue cannot have a sqrt")
+	}
+	for i := 0; i < fuz; i++ {
+		a, _ := new(fe2).rand(rand.Reader)
+		r0 := new(fe2)
+		d0 := f.sqrt(r0, a)
+		if d0 {
+			fmt.Println("sometimes", i)
+			f.square(r0, r0)
+			if !r0.equal(a) {
+				t.Fatal("sqrt failed")
 			}
 		}
 	}
