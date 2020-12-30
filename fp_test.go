@@ -809,7 +809,6 @@ func TestFp2SquareRoot(t *testing.T) {
 		r0 := new(fe2)
 		d0 := f.sqrt(r0, a)
 		if d0 {
-			fmt.Println("sometimes", i)
 			f.square(r0, r0)
 			if !r0.equal(a) {
 				t.Fatal("sqrt failed")

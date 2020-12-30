@@ -707,5 +707,4 @@ func (g *G2) mulX(p *PointG2) {
 		g.Double(t0, t0)
 	}
 	g.Add(p, t0, p)
-
 }
